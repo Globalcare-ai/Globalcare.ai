@@ -1,8 +1,10 @@
 @import "tailwindcss";
+@import url('https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600,700&display=swap');
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-clash: "Clash Grotesk", "Clash Grotesk Placeholder", sans-serif;
 }
 
 @theme inline {
@@ -23,6 +25,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  cursor: none;
+}
+
+/* hide system cursor on all interactive elements too */
+*, *::before, *::after {
+  cursor: none !important;
 }
 
 /* globe entrance: starts at 200% and eases down to its normal size */
@@ -39,4 +47,36 @@ body {
 
 .animate-globe-appear {
   animation: globe-appear 2000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* floating label chips — translateY only, rotation lives on the wrapper div */
+@keyframes float-a {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+@keyframes float-b {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+@keyframes float-c {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+@keyframes float-d {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+.chip-float-a { animation: float-a 4s   ease-in-out infinite; }
+.chip-float-b { animation: float-b 5s   ease-in-out infinite; }
+.chip-float-c { animation: float-c 4.5s ease-in-out infinite; }
+.chip-float-d { animation: float-d 3.8s ease-in-out infinite; }
+
+/* chip appear — fades up into place */
+@keyframes chip-appear {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chip-appear {
+  animation: chip-appear 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
