@@ -1,0 +1,487 @@
+/*
+ * ARCHIVED — Mapbox 3D globe + 3D plane flight animation (not currently used).
+ *
+ * This is the full previous GlobeHero implementation:
+ *   - Mapbox GL JS v3 globe (light-v11), atmosphere fog
+ *   - Great-circle flight arcs + glowing animated trail between city pairs
+ *   - public/plane.glb (chroma3d on Sketchfab) flying along the arc via a
+ *     Three.js screen-space overlay, camera gently following
+ *
+ * To restore: rename this file to GlobeHero.tsx (replacing the cobe version).
+ * Requires NEXT_PUBLIC_MAPBOX_TOKEN in .env.local (already there) and a
+ * dev-server restart after any .env.local change.
+ */
+
+"use client";
+
+import { useEffect, useRef } from "react";
+
+declare global {
+  interface Window {
+    mapboxgl: any;
+    THREE: any;
+  }
+}
+
+/* ---------- tuning knobs ---------- */
+const MAPBOX_GL_VERSION = "v3.9.0";
+const FLIGHT_MS = 11000; // duration of one flight
+const PAUSE_MS = 1600; // pause between flights
+const PLANE_PX = 60; // base plane size in px
+const YAW_OFFSET = Math.PI / 2; // flip to -Math.PI / 2 if the plane flies backwards
+const TILT = Math.PI / 2 - 0.38; // 3/4 top view of the plane
+/* ---------------------------------- */
+
+type LngLat = [number, number];
+
+const CITIES: { name: string; coords: LngLat }[] = [
+  { name: "New York", coords: [-74.006, 40.7128] },
+  { name: "New Delhi", coords: [77.209, 28.6139] },
+  { name: "London", coords: [-0.1276, 51.5072] },
+  { name: "Bangkok", coords: [100.5018, 13.7563] },
+  { name: "Toronto", coords: [-79.3832, 43.6532] },
+  { name: "Mexico City", coords: [-99.1332, 19.4326] },
+  { name: "Berlin", coords: [13.405, 52.52] },
+  { name: "Istanbul", coords: [28.9784, 41.0082] },
+  { name: "Sydney", coords: [151.2093, -33.8688] },
+  { name: "Singapore", coords: [103.8198, 1.3521] },
+];
+
+const ROUTES: [string, string][] = [
+  ["New York", "New Delhi"],
+  ["London", "Bangkok"],
+  ["Toronto", "Mexico City"],
+  ["Berlin", "Istanbul"],
+  ["Sydney", "Singapore"],
+];
+
+/* ---------- spherical math (no turf needed) ---------- */
+const D2R = Math.PI / 180;
+const R2D = 180 / Math.PI;
+
+function toVec([lng, lat]: LngLat): [number, number, number] {
+  const p = lat * D2R;
+  const l = lng * D2R;
+  return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)];
+}
+
+function slerp(a: LngLat, b: LngLat, t: number): LngLat {
+  const va = toVec(a);
+  const vb = toVec(b);
+  let dot = va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2];
+  dot = Math.min(1, Math.max(-1, dot));
+  const omega = Math.acos(dot);
+  if (omega < 1e-6) return a;
+  const so = Math.sin(omega);
+  const k1 = Math.sin((1 - t) * omega) / so;
+  const k2 = Math.sin(t * omega) / so;
+  const v: [number, number, number] = [
+    k1 * va[0] + k2 * vb[0],
+    k1 * va[1] + k2 * vb[1],
+    k1 * va[2] + k2 * vb[2],
+  ];
+  return [Math.atan2(v[1], v[0]) * R2D, Math.asin(Math.max(-1, Math.min(1, v[2]))) * R2D];
+}
+
+function angularDist(a: LngLat, b: LngLat): number {
+  const va = toVec(a);
+  const vb = toVec(b);
+  const dot = va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2];
+  return Math.acos(Math.min(1, Math.max(-1, dot)));
+}
+
+function arc(a: LngLat, b: LngLat, n = 100): LngLat[] {
+  const pts: LngLat[] = [];
+  for (let i = 0; i <= n; i++) pts.push(slerp(a, b, i / n));
+  return pts;
+}
+
+const ease = (t: number) => t * t * (3 - 2 * t); // smoothstep
+
+/* ---------- cdn loaders ---------- */
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if ((existing as any)._loaded) return resolve();
+      existing.addEventListener("load", () => resolve());
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => {
+      (s as any)._loaded = true;
+      resolve();
+    };
+    s.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+function loadCss(href: string) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = href;
+  document.head.appendChild(l);
+}
+
+export default function GlobeHero() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapDivRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!token) {
+      console.error(
+        "GlobeHero: NEXT_PUBLIC_MAPBOX_TOKEN is missing. Add it to .env.local and RESTART the dev server (env vars are only read at startup)."
+      );
+      return;
+    }
+    if (!containerRef.current || !mapDivRef.current || !canvasRef.current) return;
+
+    let disposed = false;
+    let map: any = null;
+    let renderer: any = null;
+    let raf = 0;
+    const cleanupFns: (() => void)[] = [];
+
+    const byName = Object.fromEntries(CITIES.map((c) => [c.name, c.coords]));
+    const routes = ROUTES.map(([a, b]) => ({
+      from: byName[a] as LngLat,
+      to: byName[b] as LngLat,
+    }));
+
+    (async () => {
+      loadCss(`https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.css`);
+      await Promise.all([
+        loadScript(`https://api.mapbox.com/mapbox-gl-js/${MAPBOX_GL_VERSION}/mapbox-gl.js`),
+        loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js").then(() =>
+          loadScript(
+            "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"
+          )
+        ),
+      ]);
+      if (disposed) return;
+
+      const mapboxgl = window.mapboxgl;
+      const THREE = window.THREE;
+      mapboxgl.accessToken = token;
+
+      map = new mapboxgl.Map({
+        container: mapDivRef.current,
+        style: "mapbox://styles/mapbox/light-v11",
+        projection: "globe",
+        center: [20, 25],
+        zoom: 1.9,
+        minZoom: 1.2,
+        maxZoom: 4.5,
+        attributionControl: false,
+      });
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+      map.on("error", (e: any) => console.error("GlobeHero map error:", e?.error || e));
+      map.scrollZoom.disable();
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+
+      /* ---------- three.js overlay ---------- */
+      const canvas = canvasRef.current!;
+      const container = containerRef.current!;
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+      renderer.outputEncoding = THREE.sRGBEncoding;
+
+      const scene = new THREE.Scene();
+      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+      const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+      dir.position.set(0.4, 0.8, 2);
+      scene.add(dir);
+
+      let W = container.clientWidth;
+      let H = container.clientHeight;
+      const camera = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, -2000, 2000);
+      camera.position.z = 100;
+
+      const resize = () => {
+        W = container.clientWidth;
+        H = container.clientHeight;
+        renderer.setSize(W, H, false);
+        camera.left = -W / 2;
+        camera.right = W / 2;
+        camera.top = H / 2;
+        camera.bottom = -H / 2;
+        camera.updateProjectionMatrix();
+      };
+      resize();
+      const ro = new ResizeObserver(resize);
+      ro.observe(container);
+
+      // root: screen position + heading | tiltGroup: 3/4 view tilt | model inside
+      const root = new THREE.Group();
+      const tiltGroup = new THREE.Group();
+      tiltGroup.rotation.x = TILT;
+      root.add(tiltGroup);
+      root.visible = false;
+      scene.add(root);
+
+      const fitModel = (obj: any) => {
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+        const s = 1 / Math.max(size.x, size.y, size.z);
+        obj.scale.setScalar(s);
+        obj.position.set(-center.x * s, -center.y * s, -center.z * s);
+        tiltGroup.add(obj);
+      };
+
+      new THREE.GLTFLoader().load(
+        "/plane.glb",
+        (gltf: any) => fitModel(gltf.scene),
+        undefined,
+        () => {
+          // fallback: simple dart if the glb fails to load
+          const dart = new THREE.Mesh(
+            new THREE.ConeGeometry(0.22, 1, 4),
+            new THREE.MeshStandardMaterial({ color: 0xe8f6ff, metalness: 0.3, roughness: 0.4 })
+          );
+          dart.rotation.x = Math.PI / 2; // nose along +Z like a gltf plane
+          fitModel(dart);
+        }
+      );
+
+      /* ---------- map layers ---------- */
+      let flightsStarted = false;
+
+      map.on("style.load", () => {
+        map.setFog({
+          color: "rgba(255, 255, 255, 0.95)",
+          "high-color": "rgba(96, 165, 250, 0.25)",
+          "horizon-blend": 0.04,
+          "space-color": "#f6f9ff",
+          "star-intensity": 0,
+        });
+
+        map.addSource("arcs", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: routes.map((r) => ({
+              type: "Feature",
+              properties: {},
+              geometry: { type: "LineString", coordinates: arc(r.from, r.to) },
+            })),
+          },
+        });
+        map.addLayer({
+          id: "arcs",
+          type: "line",
+          source: "arcs",
+          paint: {
+            "line-color": "rgba(37, 99, 235, 0.22)",
+            "line-width": 1,
+          },
+        });
+
+        map.addSource("trail", {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+        });
+        map.addLayer({
+          id: "trail-glow",
+          type: "line",
+          source: "trail",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#3b82f6", "line-width": 6, "line-blur": 6, "line-opacity": 0.45 },
+        });
+        map.addLayer({
+          id: "trail-core",
+          type: "line",
+          source: "trail",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#2563eb", "line-width": 1.8 },
+        });
+
+        map.addSource("cities", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: CITIES.map((c) => ({
+              type: "Feature",
+              properties: { name: c.name },
+              geometry: { type: "Point", coordinates: c.coords },
+            })),
+          },
+        });
+        map.addLayer({
+          id: "city-glow",
+          type: "circle",
+          source: "cities",
+          paint: {
+            "circle-radius": 8,
+            "circle-color": "rgba(37, 99, 235, 0.20)",
+            "circle-blur": 1,
+          },
+        });
+        map.addLayer({
+          id: "city-dot",
+          type: "circle",
+          source: "cities",
+          paint: {
+            "circle-radius": 3,
+            "circle-color": "#2563eb",
+            "circle-stroke-width": 1.5,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        map.addLayer({
+          id: "city-label",
+          type: "symbol",
+          source: "cities",
+          layout: {
+            "text-field": ["get", "name"],
+            "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+            "text-size": 11,
+            "text-offset": [0, 1.15],
+            "text-anchor": "top",
+          },
+          paint: {
+            "text-color": "#1e3a5f",
+            "text-halo-color": "rgba(255, 255, 255, 0.9)",
+            "text-halo-width": 1.2,
+          },
+        });
+
+        flightsStarted = true;
+        flightStart = performance.now() + 800;
+      });
+
+      /* ---------- animation ---------- */
+      let routeIdx = 0;
+      let flightStart = Infinity;
+      let paused = false;
+      let interacting = false;
+      let interactTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastAngle = 0;
+
+      const onDown = () => {
+        interacting = true;
+        if (interactTimer) clearTimeout(interactTimer);
+      };
+      const onUp = () => {
+        if (interactTimer) clearTimeout(interactTimer);
+        interactTimer = setTimeout(() => (interacting = false), 3000);
+      };
+      container.addEventListener("pointerdown", onDown);
+      window.addEventListener("pointerup", onUp);
+
+      const setTrail = (coords: LngLat[]) => {
+        const src = map.getSource("trail");
+        if (src)
+          src.setData({
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: coords },
+          });
+      };
+
+      const followCamera = (target: LngLat, speed: number) => {
+        if (interacting) return;
+        const cur = map.getCenter();
+        const dLng = ((target[0] - cur.lng + 540) % 360) - 180;
+        const dLat = target[1] - cur.lat;
+        map.setCenter([cur.lng + dLng * speed, cur.lat + dLat * speed]);
+      };
+
+      const frame = (now: number) => {
+        raf = requestAnimationFrame(frame);
+        if (!flightsStarted) return;
+
+        const route = routes[routeIdx % routes.length];
+
+        if (paused || now < flightStart) {
+          root.visible = false;
+          renderer.render(scene, camera);
+          return;
+        }
+
+        const t = (now - flightStart) / FLIGHT_MS;
+
+        if (t >= 1) {
+          // land: leave the full trail for a beat, then next route
+          setTrail(arc(route.from, route.to));
+          paused = true;
+          root.visible = false;
+          setTimeout(() => {
+            routeIdx++;
+            setTrail([]);
+            flightStart = performance.now();
+            paused = false;
+          }, PAUSE_MS);
+          renderer.render(scene, camera);
+          return;
+        }
+
+        const tt = ease(Math.min(1, Math.max(0, t)));
+        const pos = slerp(route.from, route.to, tt);
+        const ahead = slerp(route.from, route.to, Math.min(1, tt + 0.004));
+
+        // trail behind the plane
+        const n = Math.max(2, Math.floor(tt * 90));
+        const coords: LngLat[] = [];
+        for (let i = 0; i <= n; i++) coords.push(slerp(route.from, route.to, (i / n) * tt));
+        setTrail(coords);
+
+        followCamera(pos, 0.045);
+
+        // far side of the globe → hide
+        const c = map.getCenter();
+        if (angularDist(pos, [c.lng, c.lat]) > 1.35) {
+          root.visible = false;
+        } else {
+          const p = map.project(pos);
+          const p2 = map.project(ahead);
+          const dx = p2.x - p.x;
+          const dy = p2.y - p.y;
+          if (Math.abs(dx) + Math.abs(dy) > 0.01) lastAngle = Math.atan2(dy, dx);
+
+          root.visible = true;
+          root.position.set(p.x - W / 2, H / 2 - p.y, 0);
+          root.rotation.z = -lastAngle + YAW_OFFSET;
+          // "altitude": plane grows mid-flight
+          const alt = 0.72 + 0.5 * Math.sin(Math.PI * tt);
+          root.scale.setScalar(PLANE_PX * alt);
+        }
+
+        renderer.render(scene, camera);
+      };
+      raf = requestAnimationFrame(frame);
+
+      /* cleanup */
+      cleanupFns.push(() => {
+        cancelAnimationFrame(raf);
+        ro.disconnect();
+        container.removeEventListener("pointerdown", onDown);
+        window.removeEventListener("pointerup", onUp);
+        if (interactTimer) clearTimeout(interactTimer);
+        renderer?.dispose();
+        map?.remove();
+      });
+    })().catch((e) => console.error("GlobeHero init failed:", e));
+
+    return () => {
+      disposed = true;
+      cleanupFns.forEach((fn) => fn());
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0">
+      <div ref={mapDivRef} className="absolute inset-0 [&_.mapboxgl-ctrl-logo]:opacity-40" />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
+    </div>
+  );
+}
