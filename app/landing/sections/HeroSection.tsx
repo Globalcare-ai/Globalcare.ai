@@ -1,6 +1,7 @@
 import Image from "next/image";
-import Link from "next/link";
 import GlobeHero from "@/app/components/GlobeHero";
+import PrivyAuthButton from "@/app/components/PrivyAuthButton";
+import StartJourneyButton from "@/app/components/StartJourneyButton";
 
 export default function HeroSection() {
   return (
@@ -18,12 +19,7 @@ export default function HeroSection() {
           priority
           className="h-9 w-auto sm:h-10"
         />
-        <Link
-          href="/chatbox"
-          className="rounded-full border border-slate-200 bg-white/70 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur transition hover:border-blue-300 hover:text-blue-700"
-        >
-          Open the AI →
-        </Link>
+        <PrivyAuthButton />
       </header>
 
       {/* headline */}
@@ -37,13 +33,7 @@ export default function HeroSection() {
           without borders.
         </h1>
         <div className="mt-5">
-          <Link
-            href="/chatbox"
-            className="group inline-flex items-center gap-2 rounded-full bg-slate-950 px-7 py-3 text-sm font-medium text-white transition hover:bg-blue-600"
-          >
-            Start your journey
-            <span className="transition-transform group-hover:translate-x-0.5">→</span>
-          </Link>
+          <StartJourneyButton />
         </div>
       </div>
 

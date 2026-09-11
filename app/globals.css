@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600,700&display=swap');
+@import "tailwindcss";
 
 :root {
   --background: #ffffff;
@@ -31,6 +31,23 @@ body {
 /* hide system cursor on all interactive elements too */
 *, *::before, *::after {
   cursor: none !important;
+}
+
+/* --- restore the native cursor over any external portal (e.g. Privy login) --- */
+/* CustomCursor.tsx tags portals with [data-gc-native]; this beats *{cursor:none} */
+[data-gc-native],
+[data-gc-native] * {
+  cursor: auto !important;
+}
+[data-gc-native] button,
+[data-gc-native] a,
+[data-gc-native] [role="button"] {
+  cursor: pointer !important;
+}
+[data-gc-native] input,
+[data-gc-native] textarea,
+[data-gc-native] [contenteditable] {
+  cursor: text !important;
 }
 
 /* globe entrance: starts at 200% and eases down to its normal size */
