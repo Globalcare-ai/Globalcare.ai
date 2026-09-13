@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { createClient } from "@/utils/supabase/client";
 import CalendlyEmbed from "@/app/components/CalendlyEmbed";
+import BotAvatar from "@/app/components/BotAvatar";
 import { countryImage } from "@/lib/countryImages";
 
 type ChatMessage = {
@@ -501,15 +502,13 @@ const WELCOME: ChatMessage = {
   text: "Hi! I'm GlobalCare AI 👋 I help you find world-class medical treatment abroad — and plan the whole trip. What brings you here today?",
 };
 
-const AI_AVATAR = "/globe.png";
-const USER_AVATAR =
-  "https://res.cloudinary.com/dakrfj1oh/image/upload/v1781518882/WhatsApp_Image_2024-12-11_at_14.19.21_mpsdlf.jpg";
 
 export default function Chatbox() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [deepThink, setDeepThink] = useState(false);
+  const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null } | null>(null);
   const [docNote, setDocNote] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -550,6 +549,22 @@ export default function Chatbox() {
   const acctEmail = user?.email?.address ?? (user?.google?.email as string | undefined);
   const acctName = (user?.google?.name as string | undefined) ?? acctEmail?.split("@")[0] ?? "Patient";
   const acctInitial = acctName.charAt(0).toUpperCase();
+  const profileName = profile?.name || acctName;
+  const profileAvatar = profile?.avatar_url ?? null;
+
+  // the patient's saved profile photo — the same one the dashboard shows
+  useEffect(() => {
+    if (!authenticated || !user?.id) { setProfile(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.from("patients").select("name,avatar_url").eq("privy_user_id", user.id).maybeSingle();
+        if (!cancelled) setProfile((data as { name: string | null; avatar_url: string | null } | null) ?? null);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [authenticated, user?.id]);
   const [sideJourneys, setSideJourneys] = useState<{ id: string; condition: string | null; treatment: string | null }[]>([]);
   useEffect(() => {
     if (!authenticated || !user?.id) return;
@@ -612,6 +627,24 @@ export default function Chatbox() {
       setUploadingDoc(false);
       if (docInputRef.current) docInputRef.current.value = "";
     }
+  }
+
+  async function saveFlight(f: FlightOffer) {
+    if (!authenticated || !user?.id) return;
+    const id = await ensureJourney();
+    if (!id) return;
+    try {
+      const supabase = createClient();
+      await supabase.from("journeys").update({
+        flight_airline: f.airline,
+        flight_from: f.outbound.from,
+        flight_to: f.outbound.to,
+        flight_depart: f.outbound.departAt,
+        flight_return: f.inbound?.departAt ?? null,
+        flight_price: Number(f.price) || null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+    } catch {}
   }
   const journeyIdRef = useRef<string | null>(null);
   const appliedRef = useRef<string>("");
@@ -948,19 +981,19 @@ export default function Chatbox() {
             <span className="text-base leading-none">+</span> New chat
           </button>
         </div>
-        <nav className="mt-3 flex flex-col gap-0.5 px-3 text-sm">
-          <button onClick={() => router.push("/dashboard")} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-zinc-600 transition hover:bg-zinc-100">🏠 Dashboard</button>
-          <button onClick={() => { consultReasonRef.current = "Free consultation"; setShowCalendly(true); }} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-zinc-600 transition hover:bg-zinc-100">📅 Book consultation</button>
+        <nav className="mt-4 flex flex-col gap-0.5 px-3 text-sm">
+          <button onClick={() => router.push("/dashboard")} className="rounded-lg px-3 py-2 text-left font-semibold text-zinc-800 transition hover:bg-zinc-100">Dashboard</button>
+          <button onClick={() => { consultReasonRef.current = "Free consultation"; setShowCalendly(true); }} className="rounded-lg px-3 py-2 text-left font-semibold text-zinc-800 transition hover:bg-zinc-100">Book consultation</button>
         </nav>
         <div className="mt-4 flex-1 overflow-y-auto px-3">
-          <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Your journeys</p>
+          <p className="px-2 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">Your journeys</p>
           <div className="flex flex-col gap-0.5">
             {sideJourneys.length === 0 ? (
               <p className="px-2 py-2 text-xs text-zinc-400">No journeys yet</p>
             ) : (
               sideJourneys.map((j) => (
                 <div key={j.id} className="group relative flex items-center">
-                  <Link href={`/chatbox?journey=${j.id}`} className="flex-1 truncate rounded-lg px-2 py-2 pr-9 text-sm text-zinc-600 transition hover:bg-zinc-100">
+                  <Link href={`/chatbox?journey=${j.id}`} className="flex-1 truncate rounded-lg px-2 py-2 pr-9 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900">
                     {j.condition || j.treatment || "New medical journey"}
                   </Link>
                   <button
@@ -976,13 +1009,22 @@ export default function Chatbox() {
           </div>
         </div>
         <div className="border-t border-zinc-200 p-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">{acctInitial}</div>
+          <div className="flex items-center gap-3 rounded-xl px-2 py-1.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white ring-2 ring-white">
+              {profileAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profileAvatar} alt="" className="h-full w-full object-cover" />
+              ) : (
+                acctInitial
+              )}
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-zinc-800">{acctName}</p>
+              <p className="truncate text-sm font-bold text-zinc-900">{profileName}</p>
               <p className="truncate text-xs text-zinc-400">{acctEmail || "Patient"}</p>
             </div>
-            <button onClick={logout} title="Log out" className="rounded-lg px-2 py-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-red-500">⎋</button>
+            <button onClick={logout} title="Log out" className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-rose-50 hover:text-rose-500">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 17l5-5-5-5M20 12H9M12 19H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" /></svg>
+            </button>
           </div>
         </div>
       </aside>
@@ -1005,8 +1047,7 @@ export default function Chatbox() {
         <div className="mx-auto flex max-w-2xl flex-col gap-5">
           {!messages.some((m) => m.role === "user") ? (
             <div className="flex flex-col items-center gap-6 py-12 text-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={AI_AVATAR} alt="GlobalCare AI" className="h-14 w-14 rounded-2xl object-cover shadow-sm" />
+              <BotAvatar className="h-20 w-20 object-contain" />
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Let’s start your medical journey</h2>
                 <p className="mx-auto mt-1.5 max-w-md text-sm text-zinc-500">Tell me your condition and I’ll find the best hospitals, honest cost comparisons, travel, and a free doctor consultation.</p>
@@ -1040,12 +1081,14 @@ export default function Chatbox() {
                   <div className="max-w-[75%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-white shadow-sm">
                     {m.text}
                   </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={USER_AVATAR}
-                    alt="You"
-                    className="h-8 w-8 shrink-0 rounded-full border border-blue-100 object-cover"
-                  />
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-gradient-to-br from-blue-500 to-indigo-600 text-[11px] font-semibold text-white">
+                    {profileAvatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profileAvatar} alt="You" className="h-full w-full object-cover" />
+                    ) : (
+                      acctInitial
+                    )}
+                  </span>
                 </div>
               );
             }
@@ -1055,14 +1098,13 @@ export default function Chatbox() {
             const flightState = flightQuery ? flightResults[i] : undefined;
             const hotelState = hotelQuery ? hotelResults[i] : undefined;
 
+            // c2 while it is still thinking, c1 while the answer types out, cycling at rest
+            const isLast = i === messages.length - 1;
+            const botState = loading && isLast ? (m.text ? "typing" : "thinking") : "idle";
+
             return (
               <div key={i} className="flex w-full items-start gap-2.5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={AI_AVATAR}
-                  alt="GlobalCare AI"
-                  className="mt-0.5 h-8 w-8 shrink-0 rounded-full border border-blue-100 bg-white object-cover"
-                />
+                <BotAvatar state={botState} className="mt-0.5 h-10 w-10 shrink-0 object-contain" />
                 <div className="flex w-full flex-col gap-3">
                 {(before || !m.text) && (
                   <div className="max-w-[85%] self-start rounded-2xl rounded-tl-md border border-blue-100 bg-white px-4 py-2.5 text-zinc-800 shadow-sm">
@@ -1120,15 +1162,16 @@ export default function Chatbox() {
                     <FlightCards
                       flights={flightState.flights}
                       source={flightState.source}
-                      onSelect={(f) =>
+                      onSelect={(f) => {
+                        void saveFlight(f);
                         sendMessage(
                           `I'll take the ${f.airline} flight for $${Math.round(
                             Number(f.price)
                           )} round-trip (${f.outbound.from} → ${f.outbound.to}, departing ${fmtDate(
                             f.outbound.departAt
                           )}${f.inbound ? `, returning ${fmtDate(f.inbound.departAt)}` : ""})`
-                        )
-                      }
+                        );
+                      }}
                       disabled={loading}
                     />
                   ) : (
@@ -1260,7 +1303,8 @@ export default function Chatbox() {
                     disabled={uploadingDoc}
                     className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 disabled:opacity-50"
                   >
-                    📎 {uploadingDoc ? "Uploading…" : "Attach"}
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.1 12.3 20a5.5 5.5 0 0 1-7.8-7.8l9.2-9.1a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.1a1.8 1.8 0 0 1-2.6-2.6l8.5-8.4" /></svg>
+                    {uploadingDoc ? "Uploading…" : "Attach"}
                   </button>
                   <input
                     ref={docInputRef}
@@ -1277,7 +1321,8 @@ export default function Chatbox() {
                         : "flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300"
                     }
                   >
-                    💡 Deep Think
+                    <svg viewBox="0 0 24 24" className={`h-4 w-4 ${deepThink ? "text-blue-500" : "text-zinc-400"}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-4.6 1.9L12 15l-1.9-4.1L5.5 9l4.6-1.4zM18 15l.9 2.1 2.1.9-2.1.9L18 21l-.9-2.1-2.1-.9 2.1-.9z" /></svg>
+                    Deep Think
                   </button>
                 </div>
                 <button

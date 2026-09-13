@@ -6,40 +6,45 @@ const TESTIMONIALS = [
   {
     quote: "I saved over $18,000 on my hair transplant in Turkey. Same surgeon credentials, half the recovery time.",
     name: "Marcus T.",
-    detail: "Hair Transplant · Istanbul",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=700&h=700&fit=crop&crop=face",
+    detail: "Hair Transplant \u00b7 Istanbul",
+    img: "/x2.webp",
+    ratio: "1",
     zig: -5,
     rot: -4,
   },
   {
-    quote: "The AI planned my entire trip — treatment, hotel, flights — in one conversation. I couldn't believe it.",
+    quote: "The AI planned my entire trip \u2014 treatment, hotel, flights \u2014 in one conversation. I couldn't believe it.",
     name: "Priya S.",
-    detail: "Dental Veneers · Bangkok",
-    img: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=700&h=700&fit=crop&crop=face",
+    detail: "Spinal Surgery \u00b7 Bangkok",
+    img: "/x1.avif",
+    ratio: "3 / 4",
     zig: 6,
     rot: 3,
   },
   {
-    quote: "Escrow protection gave me peace of mind. My money was safe until everything was confirmed.",
-    name: "James R.",
-    detail: "Knee Replacement · Kraków",
-    img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=700&h=700&fit=crop&crop=face",
+    quote: "World-class oncology care in India at 12% of what the US quoted me. GlobalCare made it happen.",
+    name: "Linda K.",
+    detail: "Cancer Treatment \u00b7 Mumbai",
+    img: "/x3.avif",
+    ratio: "1",
     zig: -4,
     rot: -2,
   },
   {
-    quote: "World-class oncology care in India at 12% of what the US quoted me. GlobalCare made it happen.",
-    name: "Linda K.",
-    detail: "Cancer Treatment · Mumbai",
-    img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=700&h=700&fit=crop&crop=face",
+    quote: "Escrow protection gave me peace of mind. My money was safe until every step was actually confirmed.",
+    name: "Daniel K.",
+    detail: "FUE Hair Restoration \u00b7 Istanbul",
+    img: "/x4.jpg",
+    ratio: "3 / 2",
     zig: 7,
     rot: 4,
   },
   {
     quote: "I was skeptical at first. Now I tell everyone: your zip code shouldn't determine your healthcare.",
     name: "Ahmed F.",
-    detail: "Cardiac Surgery · Dubai",
-    img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=700&h=700&fit=crop&crop=face",
+    detail: "Cardiac Surgery \u00b7 Dubai",
+    img: "/x5.jpg",
+    ratio: "16 / 9",
     zig: -5,
     rot: -3,
   },
@@ -166,7 +171,7 @@ export default function TestimonialsSection() {
               alt={c.name}
               draggable={false}
               className="w-full block object-cover"
-              style={{ aspectRatio: "1", borderRadius: "1.4vw" }}
+              style={{ aspectRatio: c.ratio, borderRadius: "1.4vw" }}
             />
 
             {/* name + detail */}

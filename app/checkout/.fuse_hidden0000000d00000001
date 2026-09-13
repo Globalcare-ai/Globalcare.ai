@@ -1,0 +1,138 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import { metaMaskPay } from "@/lib/wallet";
+import { createClient } from "@/utils/supabase/client";
+import { payableUsd, paymentRecipient, isEscrowMode, COMPANY_WALLET, DEFAULT_MILESTONES, round6, PAYMENT_TOKEN, TOKEN_SYMBOL, onchainAmount } from "@/lib/payments";
+
+type J = { id: string; condition: string | null; hospital_name: string | null; total_cost_usd: number | null; status: string | null };
+
+export default function CheckoutPage() {
+  const router = useRouter();
+  const { ready, authenticated, user, login } = usePrivy();
+
+  const [journey, setJourney] = useState<J | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const payable = payableUsd(total);
+
+  const load = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const id = new URLSearchParams(window.location.search).get("journey");
+      const supabase = createClient();
+      if (id) {
+        const { data: j } = await supabase.from("journeys").select("id,condition,hospital_name,total_cost_usd,status").eq("id", id).single();
+        setJourney((j as J) ?? null);
+        const { data: cons } = await supabase.from("consultations").select("estimated_cost_usd").eq("journey_id", id).eq("status", "completed").order("completed_at", { ascending: false }).limit(1);
+        const cost = (cons?.[0]?.estimated_cost_usd as number | undefined) ?? (j as J | null)?.total_cost_usd ?? 0;
+        setTotal(Number(cost) || 0);
+      }
+    } catch {} finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (ready && authenticated) load();
+    if (ready && !authenticated) setLoading(false);
+  }, [ready, authenticated, load]);
+
+  async function pay() {
+    setError(null);
+    const recipient = paymentRecipient();
+    if (!recipient) { setError("Set NEXT_PUBLIC_ESCROW_WALLET (or NEXT_PUBLIC_GLOBALCARE_WALLET) in .env.local, then restart."); return; }
+    if (!journey || !user?.id) return;
+    setPaying(true);
+    try {
+      const amount = onchainAmount(total);
+      const { hash, from } = await metaMaskPay(recipient, PAYMENT_TOKEN, amount);
+      const supabase = createClient();
+      const payRow = { journey_id: journey.id, privy_user_id: user.id, amount_usd: payable, amount_usdc: PAYMENT_TOKEN === "usdc" ? amount : null, tx_hash: hash, escrow_status: "funded" };
+      if (isEscrowMode()) {
+        const { data: esc } = await supabase.from("escrow").insert({
+          journey_id: journey.id, privy_user_id: user.id, patient_wallet: from, escrow_wallet: recipient,
+          company_wallet: COMPANY_WALLET ?? null, token: TOKEN_SYMBOL, deposited_amount: amount, status: "funded", deposit_tx_hash: hash,
+        }).select("id").single();
+        const escrowId = (esc as { id: string } | null)?.id;
+        if (escrowId) {
+          await supabase.from("escrow_milestones").insert(DEFAULT_MILESTONES.map((m) => ({
+            journey_id: journey.id, escrow_id: escrowId, idx: m.idx, name: m.name, description: m.description,
+            percentage: m.percentage, amount: round6((amount * m.percentage) / 100), status: "pending",
+          })));
+        }
+        await supabase.from("payments").insert(payRow);
+        await supabase.from("journeys").update({ status: "payment", escrow_status: "funded", updated_at: new Date().toISOString() }).eq("id", journey.id);
+        router.push(`/dashboard?paid=1`);
+      } else {
+        await supabase.from("payments").insert(payRow);
+        await supabase.from("journeys").update({ status: "confirmed", updated_at: new Date().toISOString() }).eq("id", journey.id);
+        router.push(`/pass?journey=${journey.id}`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Payment failed.";
+      setError(/insufficient|balance|exceeds/i.test(msg) ? `Not enough test ${TOKEN_SYMBOL} in your MetaMask wallet on Sepolia.` : msg);
+      setPaying(false);
+    }
+  }}
+
+  if (!ready || loading) return <Center>Loading checkout…</Center>;
+  if (!authenticated) return <Center><button onClick={login} className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white hover:bg-blue-600">Log in to pay →</button></Center>;
+  if (!journey) return <Center>Journey not found. <Link href="/dashboard" className="text-blue-600 underline">Back to dashboard</Link></Center>;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#eef2fb] px-4 py-10">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">Checkout</p>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">{journey.condition || "Treatment"}</h1>
+        {journey.hospital_name && <p className="text-sm text-slate-500">{journey.hospital_name}</p>}
+
+        <div className="mt-6 space-y-2.5 text-sm">
+          <Row label="Treatment plan" value={`$${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
+          <Row label="GlobalCare demo credit" value={`−$${(total - payable).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} muted />
+          <div className="my-2 border-t border-dashed border-slate-200" />
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-slate-900">Amount to pay</span>
+            <span className="text-2xl font-semibold text-slate-900">${payable.toFixed(2)}</span>
+          </div>
+          <p className="text-right text-xs text-slate-400">= {onchainAmount(total)} {TOKEN_SYMBOL} on Sepolia (from MetaMask)</p>
+        </div>
+
+        <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+          Pays from your <b>MetaMask</b> on Ethereum Sepolia (test {TOKEN_SYMBOL}, no real money). Make sure MetaMask is on the Sepolia network.
+        </div>
+        {isEscrowMode() && (
+          <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+            🔒 Your {onchainAmount(total)} {TOKEN_SYMBOL} is held in <b>GlobalCare escrow</b> and released only as each service milestone is completed. Full refund if you cancel before fulfilment.
+          </div>
+        )}
+
+        {error && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+
+        <button onClick={pay} disabled={paying} className="mt-5 w-full rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50">
+          {paying ? "Confirm in MetaMask…" : `Pay ${onchainAmount(total)} ${TOKEN_SYMBOL}${isEscrowMode() ? " into escrow" : ""}`}
+        </button>
+        <Link href="/dashboard" className="mt-3 block text-center text-xs text-slate-400 hover:text-slate-600">Cancel</Link>
+      </div>
+    </main>
+  );
+}
+
+function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-500">{label}</span>
+      <span className={muted ? "text-emerald-600" : "text-slate-800"}>{value}</span>
+    </div>
+  );
+}
+function Center({ children }: { children: React.ReactNode }) {
+  return <main className="flex min-h-screen items-center justify-center gap-2 bg-[#eef2fb] px-6 text-center text-sm text-slate-500">{children}</main>;
+}

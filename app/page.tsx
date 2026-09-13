@@ -3,6 +3,7 @@ import HowItWorksSection from "@/app/landing/sections/HowItWorksSection";
 import ConsultationSection from "@/app/landing/sections/ConsultationSection";
 import SecondaryHeroSection from "@/app/landing/sections/SecondaryHeroSection";
 import TestimonialsSection from "@/app/landing/sections/TestimonialsSection";
+import PlatformGridSection from "@/app/landing/sections/PlatformGridSection";
 import FooterSection from "@/app/landing/sections/FooterSection";
 
 export default function Home() {
@@ -13,6 +14,7 @@ export default function Home() {
       <ConsultationSection />
       <SecondaryHeroSection />
       <TestimonialsSection />
+      <PlatformGridSection />
       <FooterSection />
     </div>
   );

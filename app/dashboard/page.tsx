@@ -7,8 +7,11 @@ import { usePrivy } from "@privy-io/react-auth";
 import { createClient } from "@/utils/supabase/client";
 import { STATUS_META, type Journey, type Consultation } from "@/lib/types";
 import MedicalProfile from "@/app/components/MedicalProfile";
+import ProfileMenu from "@/app/components/ProfileMenu";
 import MedicalDocuments from "@/app/components/MedicalDocuments";
 import ConsultationHistory from "@/app/components/ConsultationHistory";
+import EscrowStatus from "@/app/components/EscrowStatus";
+import JourneyTicket from "@/app/components/JourneyTicket";
 
 const CALENDLY = "https://calendly.com/shaiksameer8921/meet-with-your-doctor";
 
@@ -37,7 +40,7 @@ function fmtDate(iso?: string | null) {
 }
 
 export default function DashboardPage() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, login } = usePrivy();
 
   const [loading, setLoading] = useState(true);
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -105,6 +108,12 @@ export default function DashboardPage() {
     if (ready && !authenticated) setLoading(false);
   }, [ready, authenticated, loadData]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("paid") === "1") {
+      setToast("🔒 Payment secured in escrow — see your GlobalCare Pass below.");
+    }
+  }, []);
+
   async function demoCompleteConsult(cn: Consultation) {
     try {
       const supabase = createClient();
@@ -133,6 +142,19 @@ export default function DashboardPage() {
       const supabase = createClient();
       await supabase.from("journeys").delete().eq("id", id);
       await loadData();
+    } catch {}
+  }
+
+  async function requestCancellation(id: string) {
+    if (typeof window !== "undefined" && !window.confirm("Request cancellation and a refund of your escrowed payment? GlobalCare will review it.")) return;
+    try {
+      const supabase = createClient();
+      const { data: esc } = await supabase.from("escrow").select("id").eq("journey_id", id).order("created_at", { ascending: false }).limit(1);
+      const escrowId = (esc?.[0] as { id: string } | undefined)?.id ?? null;
+      await supabase.from("refunds").insert({ journey_id: id, escrow_id: escrowId, requested_by: privyId, reason: "Patient requested cancellation", status: "requested" });
+      await supabase.from("journeys").update({ escrow_status: "refund_requested" }).eq("id", id);
+      await loadData();
+      setToast("↩︎ Cancellation requested — GlobalCare will review your refund.");
     } catch {}
   }
 
@@ -173,6 +195,8 @@ export default function DashboardPage() {
   );
   const planJourney = activePlan ? journeys.find((j) => j.id === activePlan.journey_id) : undefined;
   const activeJourneys = journeys.filter((j) => j.status !== "cancelled").length;
+  const confirmedJourney = journeys.find((j) => j.status === "confirmed");
+  const paidJourney = journeys.find((j) => j.escrow_status || j.status === "confirmed");
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#e7ecf6] via-[#eef2fa] to-[#e7ecf6] text-slate-900">
@@ -194,15 +218,7 @@ export default function DashboardPage() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-sm">
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                initial
-              )}
-            </div>
-            <button onClick={logout} className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-500 transition hover:border-red-200 hover:text-red-600">Log out</button>
+            <ProfileMenu avatarUrl={avatarUrl} name={name} currentPage="dashboard" />
           </div>
         </div>
       </header>
@@ -213,7 +229,7 @@ export default function DashboardPage() {
           {/* LEFT: identity + details + wallet */}
           <div className="flex flex-col gap-5">
             <section className="rounded-3xl border border-slate-200/70 bg-white p-6 text-center shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-              <label className="group relative mx-auto flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-semibold text-white shadow-md">
+              <label className="group relative mx-auto flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-semibold text-white shadow-md ring-4 ring-white ring-offset-2 ring-offset-slate-100">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
@@ -264,20 +280,37 @@ export default function DashboardPage() {
 
           {/* RIGHT: reminders, plan, journeys, records */}
           <div className="flex flex-col gap-5">
+            {paidJourney && (
+              <Link href={`/track?journey=${paidJourney.id}`} className="block max-w-md transition hover:-translate-y-0.5">
+                <JourneyTicket journeyId={paidJourney.id} passenger={name} />
+              </Link>
+            )}
             {dbError && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Database not fully set up — run <code>schema.sql</code>, <code>002_messages.sql</code>, <code>003_medical.sql</code>.
               </div>
             )}
 
-            {(upcoming || activePlan) && (
+            {(upcoming || activePlan || confirmedJourney) && (
               <div className="flex flex-col gap-3">
+                {confirmedJourney && (
+                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg">🎟️</span>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Payment confirmed</p>
+                        <p className="mt-0.5 text-sm text-slate-700">Your treatment is booked and paid into escrow.</p>
+                      </div>
+                    </div>
+                    <a href={`/track?journey=${confirmedJourney.id}`} className="shrink-0 rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700">View pass</a>
+                  </div>
+                )}
                 {upcoming && (
                   <Banner tone="blue" kicker="Upcoming" icon="📅"
                     text={<>Video consultation with {upcoming.doctor_name || "your specialist"}{upcoming.scheduled_at ? ` · ${new Date(upcoming.scheduled_at).toLocaleString()}` : " · check your email for the time"}</>}
                     action={<a href={upcoming.meeting_url || CALENDLY} target="_blank" rel="noreferrer" className="shrink-0 rounded-full bg-blue-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-blue-700">Join</a>} />
                 )}
-                {activePlan && (
+                {activePlan && !planJourney?.escrow_status && planJourney?.status !== "payment" && (
                   <Banner tone="amber" kicker="Action required" icon="🩺"
                     text={<>Doctor completed your treatment plan{activePlan.estimated_cost_usd != null ? ` · est. $${activePlan.estimated_cost_usd.toLocaleString()}` : ""}.</>}
                     action={<a href="#treatment-plan" className="shrink-0 rounded-full bg-amber-500 px-4 py-2 text-xs font-medium text-white transition hover:bg-amber-600">View plan</a>} />
@@ -303,15 +336,26 @@ export default function DashboardPage() {
                     <span className="text-sm text-white/70">Estimated cost</span>
                     <span className="text-2xl font-semibold">{activePlan.estimated_cost_usd != null ? `$${activePlan.estimated_cost_usd.toLocaleString()}` : "—"}</span>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button onClick={() => setToast("💳 Payment is the next milestone — the crypto/escrow layer isn't wired yet, so no funds move.")} className="rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">
-                      Pay {activePlan.estimated_cost_usd != null ? `$${activePlan.estimated_cost_usd.toLocaleString()}` : ""}
-                    </button>
-                    <button onClick={() => setDismissedPlan(true)} className="rounded-full border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300">Not ready</button>
-                    {planJourney && (
-                      <button onClick={() => cancelJourney(planJourney.id)} className="rounded-full border border-rose-200 px-6 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50">Cancel journey</button>
-                    )}
-                  </div>
+                  {planJourney?.escrow_status ? (
+                    <div className="mt-4 space-y-3">
+                      <EscrowStatus journeyId={planJourney.id} />
+                      {planJourney.escrow_status !== "refund_requested" ? (
+                        <button onClick={() => requestCancellation(planJourney.id)} className="rounded-full border border-rose-200 px-6 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50">Request cancellation / refund</button>
+                      ) : (
+                        <p className="text-xs text-amber-600">↩︎ Cancellation requested — awaiting GlobalCare review.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Link href={`/checkout?journey=${activePlan.journey_id}`} className="rounded-full bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700">
+                        Pay {activePlan.estimated_cost_usd != null ? `$${activePlan.estimated_cost_usd.toLocaleString()}` : ""}
+                      </Link>
+                      <button onClick={() => setDismissedPlan(true)} className="rounded-full border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300">Not ready</button>
+                      {planJourney && (
+                        <button onClick={() => cancelJourney(planJourney.id)} className="rounded-full border border-rose-200 px-6 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50">Cancel journey</button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </section>
             )}

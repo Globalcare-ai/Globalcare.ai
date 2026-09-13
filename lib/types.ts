@@ -20,6 +20,7 @@ export type Journey = {
   destination_city: string | null;
   hospital_name: string | null;
   status: string | null;
+  escrow_status: string | null;
   total_cost_usd: number | null;
   created_at: string;
   updated_at: string | null;
