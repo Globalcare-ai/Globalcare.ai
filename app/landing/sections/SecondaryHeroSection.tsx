@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import StartChatButton from "@/app/components/StartChatButton";
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -130,12 +130,9 @@ export default function SecondaryHeroSection() {
             Get a free, honest estimate in one conversation.
           </p>
 
-          <Link
-            href="/chatbox"
-            className="mt-8 inline-block bg-slate-950 text-white text-sm font-medium tracking-wide px-8 py-4 rounded-full hover:bg-slate-800 transition-colors"
-          >
-            Talk to the AI — it&apos;s free
-          </Link>
+          <StartChatButton className="mt-8 inline-block bg-slate-950 text-white text-sm font-medium tracking-wide px-8 py-4 rounded-full transition-colors hover:bg-slate-800 disabled:opacity-60">
+            Talk to the AI &mdash; it&apos;s free
+          </StartChatButton>
         </div>
       </div>
     </div>
