@@ -1,26 +1,43 @@
 import Image from "next/image";
 
-const steps = [
+/**
+ * Each step renders either a still or a looping clip. Modelling this as a
+ * discriminated union is what makes the `type === "video"` branch below valid:
+ * with `type: "image" as const` on every entry TypeScript narrowed the field to
+ * the single literal "image", so the video branch was provably dead code.
+ */
+type StepMedia =
+  | { type: "image"; src: string; alt: string }
+  | { type: "video"; src: string; alt?: string };
+
+type Step = {
+  number: string;
+  title: string;
+  description: string;
+  media: StepMedia;
+};
+
+const steps: Step[] = [
   {
     number: "01",
     title: "Tell our AI what you need",
     description:
       "Describe your treatment and upload medical reports. The AI understands your case in minutes, not weeks.",
-    media: { type: "image" as const, src: "/mkp.png", alt: "AI chat interface" },
+    media: { type: "image", src: "/mkp.png", alt: "AI chat interface" },
   },
   {
     number: "02",
     title: "Compare real costs worldwide",
     description:
       "See honest prices across 3 destination countries vs. your home city — hospitals, flights, and hotels included.",
-    media: { type: "image" as const, src: "/gmp.png", alt: "Cost comparison" },
+    media: { type: "image", src: "/gmp.png", alt: "Cost comparison" },
   },
   {
     number: "03",
     title: "Book with escrow protection",
     description:
       "Your payment is held in secure escrow and only released when your tickets and bookings are delivered.",
-    media: { type: "image" as const, src: "/glp.png", alt: "Escrow payment" },
+    media: { type: "image", src: "/glp.png", alt: "Escrow payment" },
   },
 ];
 
@@ -85,7 +102,7 @@ export default function HowItWorksSection() {
                 ) : (
                   <Image
                     src={step.media.src}
-                    alt={step.media.alt ?? ""}
+                    alt={step.media.alt}
                     fill
                     className="object-contain"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 25vw"

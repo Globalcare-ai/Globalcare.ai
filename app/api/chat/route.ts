@@ -15,6 +15,48 @@ type ChatMessage = {
   text: string;
 };
 
+/** Live facts about this journey so the model stops re-offering finished steps. */
+type JourneyState = {
+  consultationStatus?: "none" | "scheduled" | "completed";
+  paid?: boolean;
+  flightBooked?: boolean;
+  hospital?: string | null;
+  destination?: string | null;
+  condition?: string | null;
+  estimateUsd?: number | null;
+};
+
+function stateBlock(st?: JourneyState): string {
+  if (!st) return "";
+  const lines: string[] = [];
+  if (st.condition) lines.push(`- Condition: ${st.condition}`);
+  if (st.destination) lines.push(`- Destination: ${st.destination}`);
+  if (st.hospital) lines.push(`- Hospital: ${st.hospital}`);
+  if (st.estimateUsd != null) lines.push(`- Doctor's final estimate: $${st.estimateUsd}`);
+
+  if (st.consultationStatus === "completed") {
+    lines.push(
+      "- Video consultation: ALREADY COMPLETED. Do NOT offer another consultation and do NOT emit a ```consultation block. The doctor has already filed the treatment plan.",
+      "  Only offer a consultation again if the patient explicitly asks to speak to a doctor again or wants a second opinion."
+    );
+  } else if (st.consultationStatus === "scheduled") {
+    lines.push("- Video consultation: ALREADY BOOKED and upcoming. Do NOT offer another one; remind them of the booking instead.");
+  }
+
+  if (st.paid) {
+    lines.push(
+      "- Payment: ALREADY PAID into escrow. Never ask them to pay again and never mention prices as still owed.",
+      st.flightBooked
+        ? "- Flights: already selected. Help with hotel, transfers and pre-op preparation."
+        : "- Flights: NOT booked yet. This is now the MOST IMPORTANT next step. Ask for their departure date and trip length (if you don't have them), then emit the ```flightsearch block. Do not drift to other topics until flights are chosen."
+    );
+  } else if (st.flightBooked) {
+    lines.push("- Flights: already selected.");
+  }
+
+  return lines.length ? `\n\n== CURRENT JOURNEY STATE (authoritative — trust this over the conversation) ==\n${lines.join("\n")}` : "";
+}
+
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -28,7 +70,8 @@ export async function POST(req: Request) {
     const {
       messages,
       deepThink,
-    }: { messages: ChatMessage[]; deepThink?: boolean } = await req.json();
+      journeyState,
+    }: { messages: ChatMessage[]; deepThink?: boolean; journeyState?: JourneyState } = await req.json();
     if (!messages?.length) {
       return Response.json({ error: "No messages provided" }, { status: 400 });
     }
@@ -38,7 +81,7 @@ export async function POST(req: Request) {
         systemInstruction: {
           parts: [
             {
-              text: `${SYSTEM_PROMPT}\n\nToday's date: ${new Date().toISOString().slice(0, 10)}`,
+              text: `${SYSTEM_PROMPT}\n\nToday's date: ${new Date().toISOString().slice(0, 10)}${stateBlock(journeyState)}`,
             },
           ],
         },

@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { createClient } from "@/utils/supabase/client";
+import { txUrl } from "@/lib/blockchain/arc";
 import JourneyTicket from "@/app/components/JourneyTicket";
 
 type J = { id: string; status: string | null; escrow_status: string | null; flight_from: string | null; condition: string | null; hospital_name: string | null };
 type MS = { idx: number; status: string };
-type Pay = { amount_usdc: number | null; tx_hash: string | null };
+type Pay = { amount_usdc: number | null; tx_hash: string | null; network: string | null };
 
 export default function TrackPage() {
   const { ready, authenticated, user, login } = usePrivy();
@@ -36,7 +37,7 @@ export default function TrackPage() {
         const { data: m } = await s.from("escrow_milestones").select("idx,status").eq("escrow_id", escId).order("idx");
         setMs((m as MS[]) ?? []);
       }
-      const { data: p } = await s.from("payments").select("amount_usdc,tx_hash").eq("journey_id", jid).order("created_at", { ascending: false }).limit(1);
+      const { data: p } = await s.from("payments").select("amount_usdc,tx_hash,network").eq("journey_id", jid).order("created_at", { ascending: false }).limit(1);
       setPay((p?.[0] as Pay) ?? null);
     } catch {} finally { setLoading(false); }
   }, [user?.id]);
@@ -96,7 +97,7 @@ export default function TrackPage() {
               );
             })}
           </ol>
-          {pay?.tx_hash && <p className="mt-2 truncate font-mono text-[11px] text-slate-400">Payment tx: <a href={`https://sepolia.etherscan.io/tx/${pay.tx_hash}`} target="_blank" rel="noreferrer" className="text-blue-500 underline decoration-dotted hover:text-blue-600">{pay.tx_hash}</a></p>}
+          {pay?.tx_hash && <p className="mt-2 truncate font-mono text-[11px] text-slate-400">Payment tx: <a href={txUrl(pay.tx_hash, pay.network)} target="_blank" rel="noreferrer" className="text-blue-500 underline decoration-dotted hover:text-blue-600">{pay.tx_hash}</a></p>}
         </div>
       </div>
     </main>

@@ -31,7 +31,7 @@ export async function sendUsdcFromEscrow(to: string, amountUsd: number): Promise
     args: [to as `0x${string}`, parseUnits(String(amountUsd), USDC_DECIMALS)],
   });
   const hash = await wallet.sendTransaction({ to: USDC_SEPOLIA as `0x${string}`, data, value: BigInt(0) });
-  const receipt = await pub.waitForTransactionReceipt({ hash });
+  const receipt = await pub.waitForTransactionReceipt({ hash, timeout: 45_000 });
   if (receipt.status !== "success") throw new Error("Escrow transfer reverted on-chain.");
   return hash;
 }
@@ -50,7 +50,7 @@ export async function sendFromEscrow(to: string, amount: number, token: string):
     const data = encodeFunctionData({ abi: ERC20, functionName: "transfer", args: [to as `0x${string}`, parseUnits(String(amount), USDC_DECIMALS)] });
     hash = await wallet.sendTransaction({ to: USDC_SEPOLIA as `0x${string}`, data, value: BigInt(0) });
   }
-  const receipt = await pub.waitForTransactionReceipt({ hash });
+  const receipt = await pub.waitForTransactionReceipt({ hash, timeout: 45_000 });
   if (receipt.status !== "success") throw new Error("Escrow transfer reverted on-chain.");
   return hash;
 }

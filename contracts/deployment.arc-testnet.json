@@ -1,0 +1,11 @@
+{
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "contract": "0xaedab3d9da45a5c6262e9ac35cf01978f8eb0c15",
+  "deployTx": "0x88d756a6bacd30cbe1d4c465e656b3a9d3a0cd85e7cc92189dd20c2602a96505",
+  "block": "61842997",
+  "usdc": "0x3600000000000000000000000000000000000000",
+  "trustee": "0xb5d5c8b61DfF663115DaeFC4af2712a9d6048463",
+  "deployer": "0x8f0F31f4d209B80829Bc890bE54Dc1107E8e3Aa2",
+  "deployedAt": "2026-09-13T04:37:10.685Z"
+}

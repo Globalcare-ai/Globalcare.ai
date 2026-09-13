@@ -22,6 +22,11 @@ export type Journey = {
   status: string | null;
   escrow_status: string | null;
   total_cost_usd: number | null;
+  flight_from: string | null;
+  flight_to: string | null;
+  flight_depart: string | null;
+  flight_return: string | null;
+  origin_city: string | null;
   created_at: string;
   updated_at: string | null;
 };

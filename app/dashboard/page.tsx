@@ -196,7 +196,12 @@ export default function DashboardPage() {
   const planJourney = activePlan ? journeys.find((j) => j.id === activePlan.journey_id) : undefined;
   const activeJourneys = journeys.filter((j) => j.status !== "cancelled").length;
   const confirmedJourney = journeys.find((j) => j.status === "confirmed");
-  const paidJourney = journeys.find((j) => j.escrow_status || j.status === "confirmed");
+  // every paid journey gets its own pass + tracker — not just the first one
+  const paidJourneys = journeys.filter(
+    (j) => (j.escrow_status || j.status === "confirmed") && j.status !== "cancelled"
+  );
+  // paid but no flight chosen yet: the pass still exists, it just needs dates
+  const needsFlight = paidJourneys.filter((j) => !j.flight_from || !j.flight_depart);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#e7ecf6] via-[#eef2fa] to-[#e7ecf6] text-slate-900">
@@ -280,10 +285,35 @@ export default function DashboardPage() {
 
           {/* RIGHT: reminders, plan, journeys, records */}
           <div className="flex flex-col gap-5">
-            {paidJourney && (
-              <Link href={`/track?journey=${paidJourney.id}`} className="block max-w-md transition hover:-translate-y-0.5">
-                <JourneyTicket journeyId={paidJourney.id} passenger={name} />
-              </Link>
+            {needsFlight.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {needsFlight.map((j) => (
+                  <div key={j.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Next step</p>
+                      <p className="mt-0.5 text-sm text-slate-700">
+                        Your {j.condition || "treatment"} is paid for — pick your travel dates so we can issue the flight on your pass.
+                      </p>
+                    </div>
+                    <Link
+                      href={`/chatbox?journey=${j.id}&flights=1`}
+                      className="shrink-0 rounded-full bg-blue-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-blue-700"
+                    >
+                      Choose flights →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {paidJourneys.length > 0 && (
+              <div className="flex flex-wrap gap-4">
+                {paidJourneys.map((j) => (
+                  <Link key={j.id} href={`/track?journey=${j.id}`} className="block w-full max-w-md transition hover:-translate-y-0.5">
+                    <JourneyTicket journeyId={j.id} passenger={name} />
+                  </Link>
+                ))}
+              </div>
             )}
             {dbError && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

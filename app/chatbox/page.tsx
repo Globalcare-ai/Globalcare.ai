@@ -514,6 +514,17 @@ export default function Chatbox() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const [showCalendly, setShowCalendly] = useState(false);
   const [planReady, setPlanReady] = useState(false);
+  const [flightIntent, setFlightIntent] = useState(false);
+  const flightPromptedRef = useRef(false);
+  const journeyStateRef = useRef<{
+    consultationStatus: "none" | "scheduled" | "completed";
+    paid: boolean;
+    flightBooked: boolean;
+    hospital: string | null;
+    destination: string | null;
+    condition: string | null;
+    estimateUsd: number | null;
+  }>({ consultationStatus: "none", paid: false, flightBooked: false, hospital: null, destination: null, condition: null, estimateUsd: null });
   const consultReasonRef = useRef<string | null>(null);
   const router = useRouter();
 
@@ -523,9 +534,27 @@ export default function Chatbox() {
     if (!id) return;
     try {
       const supabase = createClient();
-      const { data } = await supabase.from("journeys").select("status").eq("id", id).single();
-      const st = (data as { status?: string } | null)?.status;
-      if (st === "payment" || st === "confirmed") setPlanReady(true);
+      const [{ data: j }, { data: cons }] = await Promise.all([
+        supabase.from("journeys").select("status,escrow_status,hospital_name,destination_city,condition,flight_from,flight_depart").eq("id", id).single(),
+        supabase.from("consultations").select("status,estimated_cost_usd").eq("journey_id", id).order("created_at", { ascending: false }).limit(1),
+      ]);
+      const row = j as {
+        status?: string; escrow_status?: string | null; hospital_name?: string | null;
+        destination_city?: string | null; condition?: string | null;
+        flight_from?: string | null; flight_depart?: string | null;
+      } | null;
+      const c = (cons as { status?: string; estimated_cost_usd?: number | null }[] | null)?.[0];
+
+      if (row?.status === "payment" || row?.status === "confirmed") setPlanReady(true);
+      journeyStateRef.current = {
+        consultationStatus: c?.status === "completed" ? "completed" : c?.status === "scheduled" ? "scheduled" : "none",
+        paid: !!row?.escrow_status,
+        flightBooked: !!(row?.flight_from && row?.flight_depart),
+        hospital: row?.hospital_name ?? null,
+        destination: row?.destination_city ?? null,
+        condition: row?.condition ?? null,
+        estimateUsd: c?.estimated_cost_usd ?? null,
+      };
     } catch {}
   }, []);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -692,16 +721,31 @@ export default function Chatbox() {
     return ensuringRef.current;
   }
 
+  /**
+   * Persist what the AI learned. The chat must never walk a journey BACKWARDS:
+   * once it is paid (escrow funded) or confirmed, the conversation can still add
+   * hospital/flight details but may not touch `status`.
+   */
   async function saveJourney(patch: JourneyPatch & { messages?: ChatMessage[] }) {
     if (!authenticated || !user?.id) return;
     const id = await ensureJourney();
     if (!id) return;
     try {
       const supabase = createClient();
-      await supabase
-        .from("journeys")
-        .update({ ...patch, updated_at: new Date().toISOString() })
-        .eq("id", id);
+      const next: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() };
+
+      if (next.status) {
+        const { data: cur } = await supabase.from("journeys").select("status,escrow_status").eq("id", id).maybeSingle();
+        const row = cur as { status?: string | null; escrow_status?: string | null } | null;
+        const RANK = ["intake", "recommendation", "travel", "payment", "confirmed"];
+        const paid = !!row?.escrow_status;
+        const currentRank = RANK.indexOf(row?.status ?? "intake");
+        const nextRank = RANK.indexOf(String(next.status));
+        // paid journeys are frozen; otherwise only ever move forward
+        if (paid || row?.status === "cancelled" || nextRank <= currentRank) delete next.status;
+      }
+
+      await supabase.from("journeys").update(next).eq("id", id);
     } catch {}
   }
 
@@ -877,10 +921,22 @@ export default function Chatbox() {
           if (j) applyLoaded(j.id, j.messages);
         }
         await checkPlan();
+        if (new URLSearchParams(window.location.search).get("flights") === "1") setFlightIntent(true);
       } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, user?.id]);
+
+  // Arrived from "Choose flights →" on the dashboard: open the travel conversation
+  // once the saved chat has loaded, so we never clobber the existing history.
+  useEffect(() => {
+    if (!flightIntent || flightPromptedRef.current || loading) return;
+    if (!journeyIdRef.current) return;
+    flightPromptedRef.current = true;
+    setFlightIntent(false);
+    void sendMessage("My treatment is paid for — let's book my flights now.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flightIntent, loading, messages.length]);
 
   async function sendMessage(overrideText?: string) {
     const text = (overrideText ?? input).trim();
@@ -897,7 +953,7 @@ export default function Chatbox() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, deepThink }),
+        body: JSON.stringify({ messages: history, deepThink, journeyState: journeyStateRef.current }),
       });
 
       if (!res.ok || !res.body) {
@@ -1224,18 +1280,26 @@ export default function Chatbox() {
       <div className="px-4 pb-5 pt-2">
         <div className="mx-auto max-w-3xl">
           {planReady && (
-            <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-medium text-emerald-900">✅ Your treatment plan is ready.</p>
-              <div className="flex gap-2">
+            <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-[0_10px_34px_-14px_rgba(15,23,42,0.25)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4h6v3H9zM9 4H6a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M9 13l2 2 4-4.5" /></svg>
+                </span>
+                <div>
+                  <p className="text-sm font-semibold tracking-tight text-slate-900">Your treatment plan is ready</p>
+                  <p className="mt-0.5 text-xs text-slate-400">Reviewed by your specialist — pay securely into escrow whenever you’re ready.</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={() => router.push("/dashboard#treatment-plan")}
-                  className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  className="rounded-full bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
                 >
-                  Pay
+                  Proceed to payment →
                 </button>
                 <button
                   onClick={() => router.push("/dashboard")}
-                  className="rounded-full bg-rose-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-800"
                 >
                   End chat
                 </button>
@@ -1276,9 +1340,9 @@ export default function Chatbox() {
             <p className="mb-2 pl-2 text-xs text-blue-600">{docNote}</p>
           )}
 
-          {/* Input box */}
-          <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm transition focus-within:border-blue-300 focus-within:shadow-md">
-            <div className="px-4 pb-3 pt-2">
+          {/* Input box — gradient glow shell */}
+          <div className="rounded-2xl bg-gradient-to-r from-blue-400/35 via-indigo-400/35 to-sky-400/35 p-[1.5px] shadow-[0_0_30px_-8px_rgba(59,130,246,0.4)] transition-all duration-300 focus-within:from-blue-500/70 focus-within:via-indigo-500/70 focus-within:to-sky-500/70 focus-within:shadow-[0_0_42px_-8px_rgba(59,130,246,0.55)]">
+            <div className="rounded-[14.5px] bg-white px-4 pb-3 pt-2">
               <textarea
                 ref={textareaRef}
                 value={input}

@@ -5,14 +5,15 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { createClient } from "@/utils/supabase/client";
 import ProfileMenu from "@/app/components/ProfileMenu";
+import { networkLabel, txUrl, addressUrl } from "@/lib/blockchain/arc";
 
 type Patient = { id: string; privy_user_id: string; name: string | null; email: string | null; avatar_url: string | null; phone: string | null; date_of_birth: string | null; blood_group: string | null; allergies: string | null; conditions: string | null; medications: string | null; medical_history: string | null };
 type Journey = { id: string; privy_user_id: string; condition: string | null; treatment: string | null; destination_country: string | null; destination_city: string | null; hospital_name: string | null; status: string | null; escrow_status: string | null; total_cost_usd: number | null; flight_airline: string | null; flight_from: string | null; flight_to: string | null; flight_depart: string | null; flight_return: string | null; flight_price: number | null; origin_city: string | null; created_at: string };
 type Consult = { id: string; journey_id: string | null; privy_user_id: string; doctor_name: string | null; reason: string | null; scheduled_at: string | null; meeting_url: string | null; status: string; diagnosis: string | null; recommendations: string | null; prescription: string | null; recommended_hospital: string | null; estimated_cost_usd: number | null; completed_at: string | null; created_at: string };
-type Escrow = { id: string; journey_id: string; privy_user_id: string; patient_wallet: string | null; escrow_wallet: string | null; company_wallet: string | null; deposited_amount: number; released_amount: number; refunded_amount: number; status: string; deposit_tx_hash: string | null; token: string | null; created_at: string };
+type Escrow = { id: string; journey_id: string; privy_user_id: string; patient_wallet: string | null; escrow_wallet: string | null; company_wallet: string | null; deposited_amount: number; released_amount: number; refunded_amount: number; status: string; deposit_tx_hash: string | null; token: string | null; created_at: string; network: string | null; contract_address: string | null; approval_tx_hash: string | null };
 type MS = { id: string; escrow_id: string; idx: number; name: string; percentage: number; amount: number; status: string; release_tx_hash: string | null };
 type Refund = { id: string; journey_id: string; reason: string | null; amount: number; to_company: number; status: string; refund_tx_hash: string | null; created_at: string };
-type Payment = { id: string; journey_id: string | null; privy_user_id: string; amount_usd: number | null; tx_hash: string | null; created_at: string };
+type Payment = { id: string; journey_id: string | null; privy_user_id: string; amount_usd: number | null; tx_hash: string | null; created_at: string; network: string | null };
 type Doc = { id: string; journey_id: string | null; privy_user_id: string; file_name: string | null; title: string | null; ai_analysis: string | null; created_at: string };
 
 const ADMINS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS ?? "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
@@ -20,8 +21,8 @@ const short = (a?: string | null) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 
 const when = (d?: string | null) => (d ? new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
 const day = (d?: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" }) : "—");
 const usd = (n?: number | null) => (n == null ? "—" : `$${Number(n).toLocaleString()}`);
-const amt = (n: number) => String(Number(n.toFixed(6)));
-const scan = (h: string) => `https://sepolia.etherscan.io/tx/${h}`;
+const amt = (n: number, token?: string | null) => (token === "USDC" ? `$${Number(n).toFixed(2)}` : String(Number(n.toFixed(6))));
+const scan = (h: string, n?: string | null) => txUrl(h, n);
 
 const SECTIONS = [
   { key: "overview", label: "Overview", icon: "📊" },
@@ -206,8 +207,8 @@ export default function AdminPage() {
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                     <Kpi label="Active journeys" v={String(activeJourneys.length)} />
                     <Kpi label="Pending consults" v={String(scheduled.length)} />
-                    <Kpi label="Deposited" v={Object.entries(tokenTotals).map(([t, x]) => `${amt(x.dep)} ${t}`).join(" · ") || "0"} />
-                    <Kpi label="In escrow" v={Object.entries(tokenTotals).map(([t, x]) => `${amt(x.rem)} ${t}`).join(" · ") || "0"} />
+                    <Kpi label="Deposited" v={Object.entries(tokenTotals).map(([t, x]) => `${amt(x.dep, t)} ${t === "USDC" ? "USDC" : t}`).join(" · ") || "0"} />
+                    <Kpi label="In escrow" v={Object.entries(tokenTotals).map(([t, x]) => `${amt(x.rem, t)} ${t === "USDC" ? "USDC" : t}`).join(" · ") || "0"} />
                     <Kpi label="Upcoming trips" v={String(upcomingTrips.length)} />
                   </div>
 
@@ -233,7 +234,7 @@ export default function AdminPage() {
                       <div key={p.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm">
                         <span className="text-slate-700"><b>{nameOf(p.privy_user_id)}</b> · {journeyOf(p.journey_id)?.condition || "journey"} · {usd(p.amount_usd)}</span>
                         <span className="flex items-center gap-3 text-xs text-slate-400">
-                          {p.tx_hash && <a href={scan(p.tx_hash)} target="_blank" rel="noreferrer" className="font-mono text-blue-600 underline decoration-dotted hover:text-blue-700">{p.tx_hash.slice(0, 12)}…</a>}
+                          {p.tx_hash && <a href={scan(p.tx_hash, p.network)} target="_blank" rel="noreferrer" className="font-mono text-blue-600 underline decoration-dotted hover:text-blue-700">{p.tx_hash.slice(0, 12)}…</a>}
                           {when(p.created_at)}
                         </span>
                       </div>
@@ -245,7 +246,7 @@ export default function AdminPage() {
                       <div key={e.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm">
                         <span className="text-slate-700"><b>{nameOf(e.privy_user_id)}</b> · {journeyOf(e.journey_id)?.condition || "journey"}</span>
                         <span className="flex items-center gap-3">
-                          <span className="text-xs text-slate-500">{amt(Number(e.deposited_amount))} {e.token ?? "USDC"}</span>
+                          <span className="text-xs text-slate-500">{amt(Number(e.deposited_amount), e.token)} {e.token ?? "USDC"}</span>
                           <StatusChip s={e.status} />
                         </span>
                       </div>
@@ -383,28 +384,41 @@ export default function AdminPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-semibold">{nameOf(esc.privy_user_id)} <span className="text-sm font-normal text-slate-400">· {j?.condition || j?.treatment || "Journey"}</span></p>
-                            <p className="mt-0.5 text-xs text-slate-400">{j?.hospital_name || "—"} · patient {short(esc.patient_wallet)} · escrow {short(esc.escrow_wallet)} · company {short(esc.company_wallet)}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">{j?.hospital_name || "—"} · patient {short(esc.patient_wallet)} · company {short(esc.company_wallet)}</p>
+                            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{networkLabel(esc.network)}</span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{esc.token ?? "USDC"}</span>
+                              <span>
+                                {esc.network === "arc-testnet" ? "contract" : "escrow wallet"}{" "}
+                                <a href={addressUrl(esc.contract_address || esc.escrow_wallet || "", esc.network)} target="_blank" rel="noreferrer" className="font-mono text-blue-600 underline decoration-dotted hover:text-blue-700">
+                                  {short(esc.contract_address || esc.escrow_wallet)}
+                                </a>
+                              </span>
+                              {esc.approval_tx_hash && (
+                                <a href={scan(esc.approval_tx_hash, esc.network)} target="_blank" rel="noreferrer" className="font-mono text-blue-600 underline decoration-dotted hover:text-blue-700">approval ↗</a>
+                              )}
+                            </p>
                           </div>
                           <StatusChip s={esc.status} />
                         </div>
 
                         <div className="mt-4 grid grid-cols-3 gap-3">
-                          <Kpi label="Deposited" v={`${amt(Number(esc.deposited_amount))} ${tok}`} />
-                          <Kpi label="Released" v={`${amt(Number(esc.released_amount))} ${tok}`} />
-                          <Kpi label="Remaining" v={`${amt(remaining)} ${tok}`} />
+                          <Kpi label="Deposited" v={`${amt(Number(esc.deposited_amount), tok)} ${tok}`} />
+                          <Kpi label="Released" v={`${amt(Number(esc.released_amount), tok)} ${tok}`} />
+                          <Kpi label="Remaining" v={`${amt(remaining, tok)} ${tok}`} />
                         </div>
 
                         {(wantsCancel || req) && <p className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">↩︎ Patient requested cancellation{req?.reason ? ` — ${req.reason}` : ""} · process a refund below.</p>}
 
                         {/* multi-step escrow rail (same as patient view) */}
                         <div className="mt-5 space-y-2">
-                          <Step done label="Payment deposited" trailing={esc.deposit_tx_hash ? <a href={scan(esc.deposit_tx_hash)} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blue-600 underline decoration-dotted hover:text-blue-700">{esc.deposit_tx_hash.slice(0, 12)}…</a> : undefined} />
+                          <Step done label="Payment deposited" trailing={esc.deposit_tx_hash ? <a href={scan(esc.deposit_tx_hash, esc.network)} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blue-600 underline decoration-dotted hover:text-blue-700">{esc.deposit_tx_hash.slice(0, 12)}…</a> : undefined} />
                           <Step done={!refunded} active={!releasedAll && !refunded} label={refunded ? "Funds returned to patient" : "Funds secured in escrow"} />
                           {rows.map((m) => (
                             <Step key={m.id} done={m.status === "released"} active={m.status !== "released" && remaining + 1e-9 >= Number(m.amount) && !refunded}
-                              label={`${m.name} · ${m.percentage}% (${amt(Number(m.amount))} ${tok})`}
+                              label={`${m.name} · ${m.percentage}% (${amt(Number(m.amount), tok)} ${tok})`}
                               trailing={m.status === "released" ? (
-                                <span className="flex items-center gap-2 text-xs font-medium text-emerald-600">✓ Released{m.release_tx_hash && <a href={scan(m.release_tx_hash)} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blue-600 underline decoration-dotted hover:text-blue-700">{m.release_tx_hash.slice(0, 12)}…</a>}</span>
+                                <span className="flex items-center gap-2 text-xs font-medium text-emerald-600">✓ Released{m.release_tx_hash && <a href={scan(m.release_tx_hash, esc.network)} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-blue-600 underline decoration-dotted hover:text-blue-700">{m.release_tx_hash.slice(0, 12)}…</a>}</span>
                               ) : refunded ? (
                                 <span className="text-[10px] uppercase tracking-wide text-slate-400">n/a</span>
                               ) : (
@@ -428,7 +442,7 @@ export default function AdminPage() {
                                 {busy === `refund-${esc.id}` ? "Refunding…" : "Process refund"}
                               </button>
                             </div>
-                            <p className="mt-2 text-[10px] text-slate-400">To patient + to GlobalCare must be ≤ {amt(remaining)} {tok}.</p>
+                            <p className="mt-2 text-[10px] text-slate-400">To patient + to GlobalCare must be ≤ {amt(remaining, tok)} {tok}.</p>
                           </div>
                         )}
                       </div>

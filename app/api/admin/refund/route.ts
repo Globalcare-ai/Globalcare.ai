@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/utils/supabase/server";
 import { sendFromEscrow, escrowConfigured, adminAuthorized } from "@/lib/escrow-server";
+import { arcConfigured, readArcEscrow, refundOnArc } from "@/lib/blockchain/arc-server";
+import { usdcDecimals, toUnits, arcPublicClient } from "@/lib/blockchain/usdc";
 
 const EPS = 1e-9;
 
 export async function POST(req: Request) {
   if (!adminAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!escrowConfigured()) return NextResponse.json({ error: "ESCROW_PRIVATE_KEY not configured on the server." }, { status: 500 });
 
   let body: { journeyId?: string; refundId?: string; toPatient?: number; toCompany?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
@@ -26,14 +27,35 @@ export async function POST(req: Request) {
   const remaining = Number(esc.deposited_amount) - Number(esc.released_amount) - Number(esc.refunded_amount);
   if (toPatient + toCompany > remaining + EPS) return NextResponse.json({ error: "Refund + company split exceeds remaining escrow balance" }, { status: 400 });
 
+  const isArc = esc.network === "arc-testnet";
   let hashP: string;
-  try { hashP = await sendFromEscrow(esc.patient_wallet, toPatient, esc.token); }
-  catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "Refund failed" }, { status: 500 }); }
-
   let hashC: string | null = null;
-  if (toCompany > 0 && esc.company_wallet) {
-    try { hashC = await sendFromEscrow(esc.company_wallet, toCompany, esc.token); }
-    catch (e) { return NextResponse.json({ error: `Patient refunded (${hashP}) but company split failed: ${e instanceof Error ? e.message : "error"}` }, { status: 500 }); }
+
+  if (isArc) {
+    // one contract call settles both legs atomically
+    if (!arcConfigured()) return NextResponse.json({ error: "Arc escrow is not configured on the server." }, { status: 500 });
+    try {
+      const onChain = await readArcEscrow(journeyId);
+      if (onChain.status === "none") return NextResponse.json({ error: "No escrow funded on Arc for this journey" }, { status: 400 });
+      const decimals = await usdcDecimals(arcPublicClient());
+      const unitsPatient = toUnits(toPatient, decimals);
+      const unitsCompany = toUnits(toCompany, decimals);
+      if (unitsPatient + unitsCompany > onChain.remaining) {
+        return NextResponse.json({ error: "Refund exceeds the remaining balance held on-chain" }, { status: 400 });
+      }
+      hashP = await refundOnArc(journeyId, unitsPatient, unitsCompany);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Arc refund failed" }, { status: 500 });
+    }
+  } else {
+    if (!escrowConfigured()) return NextResponse.json({ error: "ESCROW_PRIVATE_KEY not configured on the server." }, { status: 500 });
+    try { hashP = await sendFromEscrow(esc.patient_wallet, toPatient, esc.token); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "Refund failed" }, { status: 500 }); }
+
+    if (toCompany > 0 && esc.company_wallet) {
+      try { hashC = await sendFromEscrow(esc.company_wallet, toCompany, esc.token); }
+      catch (e) { return NextResponse.json({ error: `Patient refunded (${hashP}) but company split failed: ${e instanceof Error ? e.message : "error"}` }, { status: 500 }); }
+    }
   }
 
   const newRefunded = Number(esc.refunded_amount) + toPatient;

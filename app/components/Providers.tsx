@@ -1,9 +1,12 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
-import { sepolia } from "viem/chains";
+import { arcTestnet, sepolia } from "viem/chains";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+// Arc is the default once its escrow contract is configured; Sepolia stays supported
+// so existing journeys funded there still work.
+const ARC_READY = !!process.env.NEXT_PUBLIC_ARC_ESCROW_ADDRESS;
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   // Without an app id Privy can't initialize — render the app unwrapped so the
@@ -16,8 +19,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={APP_ID}
       config={{
-        defaultChain: sepolia,
-        supportedChains: [sepolia],
+        defaultChain: ARC_READY ? arcTestnet : sepolia,
+        supportedChains: [arcTestnet, sepolia],
         appearance: {
           theme: "light",
           accentColor: "#2563eb",

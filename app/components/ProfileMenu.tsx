@@ -111,17 +111,6 @@ export default function ProfileMenu({
     );
   }
 
-  const Avatar = ({ size }: { size: string }) => (
-    <span className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 font-semibold text-white`}>
-      {avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-      ) : (
-        initial
-      )}
-    </span>
-  );
-
   return (
     <div ref={boxRef} className="relative">
       <button
@@ -131,7 +120,7 @@ export default function ProfileMenu({
         aria-label="Account menu"
         className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-sm shadow-sm ring-1 transition hover:shadow-md ${open ? "ring-2 ring-blue-500" : "ring-slate-200 hover:ring-blue-400"}`}
       >
-        <Avatar size="h-full w-full text-sm" />
+        <Avatar size="h-full w-full text-sm" url={avatarUrl} initial={initial} />
       </button>
 
       {open && (
@@ -143,7 +132,7 @@ export default function ProfileMenu({
           <style>{`@keyframes gcMenuIn{from{opacity:0;transform:translateY(-5px) scale(.97)}to{opacity:1;transform:none}}`}</style>
 
           <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3.5">
-            <Avatar size="h-10 w-10 text-sm" />
+            <Avatar size="h-10 w-10 text-sm" url={avatarUrl} initial={initial} />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
               <p className="truncate text-[11px] text-slate-400">{email ?? "Signed in"}</p>
@@ -191,6 +180,19 @@ export default function ProfileMenu({
         </div>
       )}
     </div>
+  );
+}
+
+function Avatar({ size, url, initial }: { size: string; url: string | null; initial: string }) {
+  return (
+    <span className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 font-semibold text-white`}>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initial
+      )}
+    </span>
   );
 }
 

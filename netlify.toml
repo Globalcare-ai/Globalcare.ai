@@ -1,0 +1,19 @@
+# Netlify build config for GlobalCare.ai (Next.js 16 App Router).
+# The Next.js runtime is auto-detected by Netlify; this file only pins the Node
+# version and keeps secret scanning from tripping over intentionally-public vars.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+  # Every NEXT_PUBLIC_* value is compiled into the browser bundle ON PURPOSE.
+  # Netlify's scanner would otherwise see them in the build output and fail the
+  # deploy. Only public keys are listed here — never ESCROW_PRIVATE_KEY,
+  # ADMIN_API_SECRET, GEMINI_API_KEY, SERPAPI_KEY or SUPABASE_SERVICE_ROLE_KEY.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,NEXT_PUBLIC_PRIVY_APP_ID,NEXT_PUBLIC_ALCHEMY_API_KEY,NEXT_PUBLIC_MAPBOX_TOKEN,NEXT_PUBLIC_GLOBALCARE_WALLET,NEXT_PUBLIC_ESCROW_WALLET,NEXT_PUBLIC_ADMIN_WALLETS,NEXT_PUBLIC_ARC_ESCROW_ADDRESS,NEXT_PUBLIC_ARC_USDC_ADDRESS,NEXT_PUBLIC_ARC_RPC_URL,NEXT_PUBLIC_ARC_EXPLORER_URL,NEXT_PUBLIC_ARC_CHAIN_ID,NEXT_PUBLIC_PAYMENT_MODE,NEXT_PUBLIC_PAYMENT_TOKEN,NEXT_PUBLIC_ESCROW_ETH_TOTAL"
+
+  # contracts/ holds compiled bytecode + a deployment record, not secrets.
+  SECRETS_SCAN_OMIT_PATHS = "contracts/*,scripts/*,supabase/*"

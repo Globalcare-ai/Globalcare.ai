@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
-import { createPublicClient, formatEther, http, parseEther } from "viem";
+import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
+import { createPublicClient, encodeFunctionData, formatEther, http, parseEther } from "viem";
 import { sepolia } from "viem/chains";
+import { ARC_CHAIN_ID, ARC_ESCROW_ADDRESS, ARC_FAUCET_URL, ARC_USDC_ADDRESS, isArcActive, journeyKey, txUrl } from "@/lib/blockchain/arc";
+import { ERC20_ABI, arcPublicClient, formatUsdc, toUnits, usdcAllowance, usdcBalance, usdcDecimals } from "@/lib/blockchain/usdc";
+import { ESCROW_ABI } from "@/lib/blockchain/escrow";
 import { createClient } from "@/utils/supabase/client";
 import { USDC_SEPOLIA, usdcTransferData, payableUsd, paymentRecipient, isEscrowMode, COMPANY_WALLET, DEFAULT_MILESTONES, round6, PAYMENT_TOKEN, TOKEN_SYMBOL, onchainAmount } from "@/lib/payments";
 
@@ -28,6 +31,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
+  const { wallets } = useWallets();
+  const ARC = isArcActive();
+  const [usdcBal, setUsdcBal] = useState<{ units: bigint; decimals: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const payable = payableUsd(total);
@@ -55,10 +61,114 @@ export default function CheckoutPage() {
     if (ready && !authenticated) setLoading(false);
   }, [ready, authenticated, load]);
 
+  // live USDC balance straight from Arc — never a cached or invented number
+  useEffect(() => {
+    if (!ARC || !wallet) return;
+    let off = false;
+    (async () => {
+      try {
+        const pc = arcPublicClient();
+        const [d, units] = await Promise.all([usdcDecimals(pc), usdcBalance(wallet as `0x${string}`, pc)]);
+        if (!off) setUsdcBal({ units, decimals: d });
+      } catch { if (!off) setUsdcBal(null); }
+    })();
+    return () => { off = true; };
+  }, [ARC, wallet]);
+
+  /** Ensure the Privy embedded wallet is actually on Arc before signing anything. */
+  async function ensureArcNetwork() {
+    const w = wallets.find((x) => x.address?.toLowerCase() === wallet?.toLowerCase()) ?? wallets[0];
+    if (!w) throw new Error("No wallet available — log in again so your GlobalCare wallet loads.");
+    const current = Number(String(w.chainId).replace("eip155:", ""));
+    if (current !== ARC_CHAIN_ID) {
+      setStage("Switching to Arc Testnet…");
+      try {
+        await w.switchChain(ARC_CHAIN_ID);
+      } catch {
+        throw new Error("Your wallet isn't on Arc Testnet and the switch was declined. Approve the network switch and try again.");
+      }
+    }
+  }
+
+  /** Arc Testnet: approve USDC, then fund the escrow contract. Two real transactions. */
+  async function payOnArc() {
+    if (!journey || !user?.id || !wallet) return;
+    if (!ARC_ESCROW_ADDRESS) throw new Error("Arc escrow contract is not configured yet (NEXT_PUBLIC_ARC_ESCROW_ADDRESS).");
+    if (!COMPANY_WALLET) throw new Error("Set NEXT_PUBLIC_GLOBALCARE_WALLET — it receives milestone releases.");
+
+    const pc = arcPublicClient();
+    const decimals = await usdcDecimals(pc);
+    const amountUnits = toUnits(payable, decimals);
+    if (amountUnits <= BigInt(0)) throw new Error("Nothing to pay for this journey.");
+
+    await ensureArcNetwork();
+
+    // 1) real balance check on Arc
+    setStage("Checking your USDC balance…");
+    const bal = await usdcBalance(wallet as `0x${string}`, pc);
+    setUsdcBal({ units: bal, decimals });
+    if (bal < amountUnits) {
+      throw new Error(`Your GlobalCare wallet holds $${formatUsdc(bal, decimals)} USDC but this payment needs $${payable.toFixed(2)}. Top up at ${ARC_FAUCET_URL} (Arc Testnet) and try again.`);
+    }
+
+    const escrowAddr = ARC_ESCROW_ADDRESS as `0x${string}`;
+    const key = journeyKey(journey.id);
+
+    // 2) approve — skipped only when a sufficient allowance already exists on-chain
+    let approvalHash: string | null = null;
+    const allowance = await usdcAllowance(wallet as `0x${string}`, escrowAddr, pc);
+    if (allowance < amountUnits) {
+      setStage("Step 1 of 2 · approve USDC in your wallet…");
+      const approveRes = await sendTransaction(
+        { to: ARC_USDC_ADDRESS, value: 0, data: encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [escrowAddr, amountUnits] }) },
+        { address: wallet }
+      );
+      approvalHash = approveRes.hash;
+      setStage("Waiting for the approval to confirm on Arc…");
+      const approveReceipt = await pc.waitForTransactionReceipt({ hash: approveRes.hash as `0x${string}`, timeout: 180_000 });
+      if (approveReceipt.status !== "success") throw new Error(`USDC approval reverted — nothing was charged. ${txUrl(approveRes.hash, "arc-testnet")}`);
+    }
+
+    // 3) fund the escrow contract
+    setStage("Step 2 of 2 · confirm the escrow deposit…");
+    const fundRes = await sendTransaction(
+      { to: escrowAddr, value: 0, data: encodeFunctionData({ abi: ESCROW_ABI, functionName: "fund", args: [key, COMPANY_WALLET as `0x${string}`, amountUnits] }) },
+      { address: wallet }
+    );
+    setStage("Waiting for Arc confirmation…");
+    const receipt = await pc.waitForTransactionReceipt({ hash: fundRes.hash as `0x${string}`, timeout: 180_000 });
+    if (receipt.status !== "success") throw new Error(`Escrow funding reverted — payment NOT recorded. ${txUrl(fundRes.hash, "arc-testnet")}`);
+
+    // 4) confirmed on-chain — mirror it into Supabase
+    setStage("Recording payment…");
+    const supabase = createClient();
+    const amountUsd = Number(payable.toFixed(2));
+    const { data: esc } = await supabase.from("escrow").insert({
+      journey_id: journey.id, privy_user_id: user.id, patient_wallet: wallet,
+      escrow_wallet: escrowAddr, company_wallet: COMPANY_WALLET, token: "USDC",
+      network: "arc-testnet", chain_id: ARC_CHAIN_ID, contract_address: escrowAddr,
+      deposited_amount: amountUsd, amount_raw: amountUnits.toString(),
+      status: "funded", deposit_tx_hash: fundRes.hash, approval_tx_hash: approvalHash,
+    }).select("id").single();
+
+    const escrowId = (esc as { id: string } | null)?.id;
+    if (escrowId) {
+      await supabase.from("escrow_milestones").insert(DEFAULT_MILESTONES.map((m) => ({
+        journey_id: journey.id, escrow_id: escrowId, idx: m.idx, name: m.name, description: m.description,
+        percentage: m.percentage, amount: round6((amountUsd * m.percentage) / 100), status: "pending",
+      })));
+    }
+    await supabase.from("payments").insert({
+      journey_id: journey.id, privy_user_id: user.id, amount_usd: amountUsd, amount_usdc: amountUsd,
+      tx_hash: fundRes.hash, approval_tx_hash: approvalHash, escrow_status: "funded",
+      network: "arc-testnet", chain_id: ARC_CHAIN_ID, payment_asset: "USDC",
+    });
+    await supabase.from("journeys").update({ status: "payment", escrow_status: "funded", updated_at: new Date().toISOString() }).eq("id", journey.id);
+    router.push(`/dashboard?paid=1`);
+  }
+
   async function pay() {
     setError(null);
-    const recipient = paymentRecipient();
-    if (!recipient) { setError("Set NEXT_PUBLIC_ESCROW_WALLET (or NEXT_PUBLIC_GLOBALCARE_WALLET) in .env.local, then restart."); return; }
     if (!wallet) { setError("No wallet found — log in so your GlobalCare wallet is created."); return; }
     if (!journey || !user?.id) return;
     setPaying(true);
@@ -71,8 +181,13 @@ export default function CheckoutPage() {
           throw new Error("This journey is already funded \u2014 the payment is in escrow. Check your dashboard.");
         }
       }
+
+      if (ARC) { await payOnArc(); return; }
+
+      // ---- legacy Sepolia rail (kept working until Arc is configured) ----
+      const recipient = paymentRecipient();
+      if (!recipient) throw new Error("Set NEXT_PUBLIC_ESCROW_WALLET (or NEXT_PUBLIC_GLOBALCARE_WALLET) in .env.local, then restart.");
       const amount = onchainAmount(total);
-      // 1) Balance pre-check on Sepolia so we never broadcast a doomed tx
       if (PAYMENT_TOKEN === "eth") {
         const bal = await publicClient.getBalance({ address: wallet as `0x${string}` });
         const need = parseEther(String(amount)) + parseEther("0.0002");
@@ -80,7 +195,6 @@ export default function CheckoutPage() {
           throw new Error(`Your GlobalCare wallet holds ${Number(formatEther(bal)).toFixed(5)} Sepolia ETH but this payment needs ${amount} ETH + gas. Send more Sepolia ETH to ${wallet} and try again.`);
         }
       }
-      // 2) Sign & broadcast from the Privy embedded wallet — hash comes from the chain, never generated here
       setStage("Confirm in your wallet…");
       let hash: `0x${string}`;
       if (PAYMENT_TOKEN === "eth") {
@@ -90,21 +204,20 @@ export default function CheckoutPage() {
         const res = await sendTransaction({ to: USDC_SEPOLIA, value: 0, data: usdcTransferData(recipient, amount) }, { address: wallet });
         hash = res.hash as `0x${string}`;
       }
-      // 3) Wait for the REAL on-chain receipt. Nothing is written to the database until Sepolia confirms.
       setStage("Waiting for on-chain confirmation…");
       const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 180_000 });
       if (receipt.status !== "success") {
         throw new Error(`Transaction was mined but reverted — payment NOT recorded. Check https://sepolia.etherscan.io/tx/${hash}`);
       }
-      // 4) Confirmed on-chain — only now record it
       setStage("Recording payment…");
       const from = wallet;
       const supabase = createClient();
-      const payRow = { journey_id: journey.id, privy_user_id: user.id, amount_usd: payable, amount_usdc: PAYMENT_TOKEN === "usdc" ? amount : null, tx_hash: hash, escrow_status: "funded" };
+      const payRow = { journey_id: journey.id, privy_user_id: user.id, amount_usd: payable, amount_usdc: PAYMENT_TOKEN === "usdc" ? amount : null, tx_hash: hash, escrow_status: "funded", network: "sepolia", chain_id: 11155111, payment_asset: TOKEN_SYMBOL };
       if (isEscrowMode()) {
         const { data: esc } = await supabase.from("escrow").insert({
           journey_id: journey.id, privy_user_id: user.id, patient_wallet: from, escrow_wallet: recipient,
           company_wallet: COMPANY_WALLET ?? null, token: TOKEN_SYMBOL, deposited_amount: amount, status: "funded", deposit_tx_hash: hash,
+          network: "sepolia", chain_id: 11155111,
         }).select("id").single();
         const escrowId = (esc as { id: string } | null)?.id;
         if (escrowId) {
@@ -123,10 +236,12 @@ export default function CheckoutPage() {
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Payment failed.";
-      if (/timed out|timeout/i.test(msg)) {
-        setError("The transaction was broadcast but not confirmed within 3 minutes, so nothing was recorded. Check your wallet on sepolia.etherscan.io and try again once it settles.");
+      if (/User rejected|rejected the request|denied/i.test(msg)) {
+        setError("You cancelled the transaction — nothing was charged.");
+      } else if (/timed out|timeout/i.test(msg)) {
+        setError("The transaction was broadcast but not confirmed in time, so nothing was recorded. Check your wallet and try again once it settles.");
       } else if (/insufficient|balance|exceeds|funds/i.test(msg) && !/GlobalCare wallet holds/.test(msg)) {
-        setError(`Not enough test ${TOKEN_SYMBOL} in your GlobalCare wallet. Send a little Sepolia ${TOKEN_SYMBOL} to ${wallet ?? "your wallet"} first.`);
+        setError(ARC ? "Not enough USDC in your GlobalCare wallet on Arc Testnet." : `Not enough test ${TOKEN_SYMBOL} in your GlobalCare wallet.`);
       } else {
         setError(msg);
       }
@@ -148,28 +263,51 @@ export default function CheckoutPage() {
 
         <div className="mt-6 space-y-2.5 text-sm">
           <Row label="Treatment plan" value={`$${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
-          <Row label="GlobalCare demo credit" value={`−$${(total - payable).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} muted />
+          <Row label="Hackathon demo testing credit" value={`−$${(total - payable).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} muted />
           <div className="my-2 border-t border-dashed border-slate-200" />
           <div className="flex items-center justify-between">
             <span className="font-semibold text-slate-900">Amount to pay</span>
             <span className="text-2xl font-semibold text-slate-900">${payable.toFixed(2)}</span>
           </div>
-          <p className="text-right text-xs text-slate-400">= {onchainAmount(total)} {TOKEN_SYMBOL} on Sepolia, paid from your GlobalCare wallet</p>
+          <p className="text-right text-xs text-slate-400">
+            {ARC ? `paid in USDC on Arc Testnet` : `= ${onchainAmount(total)} ${TOKEN_SYMBOL} on Sepolia`}
+          </p>
         </div>
 
-        <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-          Pays from your <b>GlobalCare (Privy) wallet</b> <span className="font-mono">{wallet ? `${wallet.slice(0,6)}…${wallet.slice(-4)}` : "—"}</span> on Sepolia. Fund it first by sending a little test {TOKEN_SYMBOL} to that address from MetaMask.
+        <div className="mt-5 space-y-2 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+          <div className="flex items-center justify-between">
+            <span>Wallet</span>
+            <span className="font-mono text-slate-700">{wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "—"}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Network</span>
+            <span className="font-medium text-slate-700">{ARC ? "Arc Testnet" : "Ethereum Sepolia"}</span>
+          </div>
+          {ARC && (
+            <div className="flex items-center justify-between">
+              <span>USDC balance</span>
+              <span className={`font-medium ${usdcBal && usdcBal.units < toUnits(payable, usdcBal.decimals) ? "text-rose-600" : "text-slate-700"}`}>
+                {usdcBal ? `$${formatUsdc(usdcBal.units, usdcBal.decimals)}` : "checking…"}
+              </span>
+            </div>
+          )}
+          {ARC && usdcBal && usdcBal.units < toUnits(payable, usdcBal.decimals) && (
+            <p className="pt-1 text-rose-600">
+              Not enough USDC. Top up this wallet on Arc Testnet at{" "}
+              <a href={ARC_FAUCET_URL} target="_blank" rel="noreferrer" className="underline">faucet.circle.com</a>.
+            </p>
+          )}
         </div>
         {isEscrowMode() && (
           <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
-            🔒 Your {onchainAmount(total)} {TOKEN_SYMBOL} is held in <b>GlobalCare escrow</b> and released only as each service milestone is completed. Full refund if you cancel before fulfilment.
+            🔒 Your ${payable.toFixed(2)} is held in the <b>GlobalCare escrow{ARC ? " smart contract on Arc" : ""}</b> and released only as each service milestone is completed. Full refund of whatever is unreleased if you cancel.
           </div>
         )}
 
         {error && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
         <button onClick={pay} disabled={paying} className="mt-5 w-full rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50">
-          {paying ? (stage ?? "Confirm in your wallet…") : `Pay ${onchainAmount(total)} ${TOKEN_SYMBOL}${isEscrowMode() ? " into escrow" : ""}`}
+          {paying ? (stage ?? "Confirm in your wallet…") : ARC ? `Pay $${payable.toFixed(2)} USDC into escrow` : `Pay ${onchainAmount(total)} ${TOKEN_SYMBOL}${isEscrowMode() ? " into escrow" : ""}`}
         </button>
         <Link href="/dashboard" className="mt-3 block text-center text-xs text-slate-400 hover:text-slate-600">Cancel</Link>
       </div>
