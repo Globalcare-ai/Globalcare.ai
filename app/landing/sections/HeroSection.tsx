@@ -23,16 +23,16 @@ export default function HeroSection() {
       </header>
 
       {/* headline */}
-      <div className="relative z-0 mt-[0.5vh] px-6 text-center">
-        <p className="mx-auto mb-3 inline-block rounded-full border border-blue-200/80 bg-white/70 px-3.5 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500 shadow-[0_0_16px_rgba(59,130,246,0.35)] backdrop-blur">
+      <div className="pointer-events-none relative z-10 mt-[0.5vh] px-6 text-center">
+        <p className="pointer-events-auto mx-auto mb-3 inline-block rounded-full border border-blue-200/80 bg-white/70 px-3.5 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500 shadow-[0_0_16px_rgba(59,130,246,0.35)] backdrop-blur">
           AI medical tourism · escrow secured
         </p>
-        <h1 className="text-[clamp(2.5rem,8.5vw,7.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-slate-950">
+        <h1 className="pointer-events-auto text-[clamp(2.5rem,8.5vw,7.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-slate-950">
           Healthcare
           <br />
           without borders.
         </h1>
-        <div className="mt-5">
+        <div className="mt-5 flex justify-center">
           <StartJourneyButton />
         </div>
       </div>
