@@ -73,7 +73,7 @@ export default function TrackPage() {
 
         <JourneyTicket journeyId={id} passenger={name} />
 
-        <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Your journey — step by step</h2>
           <ol className="mt-5">
             {steps.map((s, i) => {

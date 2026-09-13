@@ -55,8 +55,8 @@ export default function HowItWorksSection() {
             style={{
               fontFamily: "Geist, 'Geist Fallback', ui-sans-serif, system-ui, sans-serif",
               fontWeight: 500,
-              fontSize: "56px",
-              lineHeight: "70px",
+              fontSize: "clamp(30px, 6.5vw, 56px)",
+              lineHeight: "clamp(38px, 8vw, 70px)",
               letterSpacing: "-0.03em",
               color: "#0a0a0a",
             }}
@@ -68,8 +68,8 @@ export default function HowItWorksSection() {
             style={{
               fontFamily: "Geist, 'Geist Fallback', ui-sans-serif, system-ui, sans-serif",
               fontWeight: 400,
-              fontSize: "20px",
-              lineHeight: "28px",
+              fontSize: "clamp(15px, 4vw, 20px)",
+              lineHeight: "clamp(22px, 5.6vw, 28px)",
               color: "rgb(94, 97, 110)",
               marginTop: "12px",
             }}
@@ -116,7 +116,7 @@ export default function HowItWorksSection() {
                   style={{
                     fontFamily: "Geist, 'Geist Fallback', ui-sans-serif, system-ui, sans-serif",
                     fontWeight: 500,
-                    fontSize: "18px",
+                    fontSize: "clamp(16px, 4.4vw, 18px)",
                     lineHeight: "26px",
                     color: "#0a0a0a",
                     marginBottom: "4px",
@@ -128,7 +128,7 @@ export default function HowItWorksSection() {
                   style={{
                     fontFamily: "Geist, 'Geist Fallback', ui-sans-serif, system-ui, sans-serif",
                     fontWeight: 400,
-                    fontSize: "20px",
+                    fontSize: "clamp(15px, 4.2vw, 20px)",
                     lineHeight: "28px",
                     color: "rgb(94, 97, 110)",
                   }}

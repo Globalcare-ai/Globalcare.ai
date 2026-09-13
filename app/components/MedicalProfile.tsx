@@ -46,8 +46,8 @@ export default function MedicalProfile({ privyId, email }: { privyId: string; em
   const filled = (v: unknown) => (v ? String(v) : "—");
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between">
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-0">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Medical profile</h2>
         {!editing ? (
           <button onClick={() => setEditing(true)} className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-600">
@@ -63,7 +63,7 @@ export default function MedicalProfile({ privyId, email }: { privyId: string; em
         )}
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {FIELDS.map((f) => (
           <div key={f.key} className={f.area ? "sm:col-span-2" : ""}>
             <label className="text-xs font-medium text-slate-400">{f.label}</label>

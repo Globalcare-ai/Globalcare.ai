@@ -138,12 +138,12 @@ export default function JourneyTicket({ journeyId, passenger }: { journeyId: str
       >
         {cancelled && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-white/35">
-            <span className="-rotate-12 rounded-xl border-4 border-rose-500/80 px-7 py-2.5 text-4xl font-extrabold uppercase tracking-[0.28em] text-rose-500/80">Cancelled</span>
+            <span className="-rotate-12 rounded-xl border-4 border-rose-500/80 px-5 sm:px-7 py-2.5 text-4xl font-extrabold uppercase tracking-[0.28em] text-rose-500/80">Cancelled</span>
           </div>
         )}
 
         {/* airline strip */}
-        <div className="flex items-center justify-between px-7 pt-5">
+        <div className="flex items-center justify-between px-5 sm:px-7 pt-5">
           <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-blue-600" fill="currentColor" aria-hidden>
               <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" />
@@ -154,11 +154,11 @@ export default function JourneyTicket({ journeyId, passenger }: { journeyId: str
         </div>
 
         {/* route */}
-        <div className="px-7 pt-3">
+        <div className="px-5 sm:px-7 pt-3">
           <div className="flex items-center justify-between">
-            <span className="text-5xl font-extrabold leading-none tracking-tight text-slate-900">{from}</span>
+            <span className="text-4xl font-extrabold leading-none tracking-tight text-slate-900 sm:text-5xl">{from}</span>
             <svg width="34" height="20" viewBox="0 0 34 20" fill="none" className="text-blue-600"><path d="M2 10h28m0 0-7-7m7 7-7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="text-5xl font-extrabold leading-none tracking-tight text-slate-900">{to}</span>
+            <span className="text-4xl font-extrabold leading-none tracking-tight text-slate-900 sm:text-5xl">{to}</span>
           </div>
           <div className="mt-2.5 flex items-center justify-between text-sm text-slate-400">
             <span>{j.origin_city || "Home"}</span>
@@ -167,16 +167,16 @@ export default function JourneyTicket({ journeyId, passenger }: { journeyId: str
         </div>
 
         {/* passenger */}
-        <div className="px-7 pt-6">
+        <div className="px-5 sm:px-7 pt-6">
           <Label>Passenger</Label>
           <p className="mt-0.5 truncate text-xl font-semibold text-slate-900">{passenger || "Patient"}</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 px-7 pb-5 pt-4">
+        <div className="grid grid-cols-3 gap-4 px-5 sm:px-7 pb-5 pt-4">
           <Field label="Treatment" value={j.condition || j.treatment || "\u2014"} wide />
           <Field label="Flight" value={flightNo} />
         </div>
-        <div className="grid grid-cols-3 gap-4 px-7 pb-7">
+        <div className="grid grid-cols-3 gap-4 px-5 sm:px-7 pb-7">
           <Field label="Date" value={fmtDate(j.flight_depart)} />
           <Field label="Departs" value={fmtTime(j.flight_depart)} />
           <Field label="Class" value="Care+" />
@@ -188,7 +188,7 @@ export default function JourneyTicket({ journeyId, passenger }: { journeyId: str
         </div>
 
         {/* stub */}
-        <div className="flex items-start justify-between gap-5 px-7 pb-7 pt-7">
+        <div className="flex items-start justify-between gap-5 px-5 sm:px-7 pb-7 pt-7">
           <div className="min-w-0 space-y-3.5">
             <Field label="Hospital" value={j.hospital_name || "To be confirmed"} />
             <Field label="Doctor" value={cons?.doctor_name || "GlobalCare Specialist"} />

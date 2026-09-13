@@ -27,7 +27,7 @@ export default function HeroSection() {
         <p className="mx-auto mb-3 inline-block rounded-full border border-blue-200/80 bg-white/70 px-3.5 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500 shadow-[0_0_16px_rgba(59,130,246,0.35)] backdrop-blur">
           AI medical tourism · escrow secured
         </p>
-        <h1 className="text-[clamp(3.2rem,8.5vw,7.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-slate-950">
+        <h1 className="text-[clamp(2.5rem,8.5vw,7.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-slate-950">
           Healthcare
           <br />
           without borders.

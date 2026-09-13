@@ -93,9 +93,16 @@ export default function TestimonialsSection() {
   }, []);
 
   return (
-    <div id="testimonials-root" className="relative" style={{ height: "500vh" }}>
-      {/* sticky stage — stays in view while you scroll through 500vh */}
-      <div className="sticky top-0 h-screen overflow-hidden"
+    <div id="testimonials-root" className="gc-stories relative">
+      {/* The card train is a desktop scroll animation: its cards are sized in vw,
+          which collapses to ~6px text on a phone. Phones get the stacked list
+          below instead — the train and its 500vh of scroll are lg-only. */}
+      <style>{`
+        .gc-stories { height: auto; }
+        @media (min-width: 1024px) { .gc-stories { height: 500vh; } }
+      `}</style>
+
+      <div className="sticky top-0 hidden h-screen overflow-hidden lg:block"
         style={{ background: "#f8f6f1" }}
       >
         {/* warm glows */}
@@ -185,6 +192,40 @@ export default function TestimonialsSection() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ---- phones & tablets: a plain, readable stack ---- */}
+      <div className="px-5 py-16 lg:hidden" style={{ background: "#f8f6f1" }}>
+        <p className="text-center font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">
+          Patient Stories
+        </p>
+        <h2
+          className="mt-3 text-center font-semibold text-blue-600"
+          style={{ fontFamily: "var(--font-clash)", fontSize: "clamp(28px, 8vw, 44px)", lineHeight: 1.05, letterSpacing: "-0.035em" }}
+        >
+          Real People. Real Savings.
+        </h2>
+
+        <div className="mx-auto mt-8 flex max-w-md flex-col gap-5">
+          {TESTIMONIALS.map((c) => (
+            <figure key={c.name} className="m-0 overflow-hidden rounded-3xl bg-white/80 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.18)] backdrop-blur">
+              <img
+                src={c.img}
+                alt={c.name}
+                draggable={false}
+                className="block w-full object-cover"
+                style={{ aspectRatio: c.ratio }}
+              />
+              <figcaption className="p-5">
+                <p className="m-0 text-[15px] font-medium leading-snug tracking-tight text-slate-800">
+                  &ldquo;{c.quote}&rdquo;
+                </p>
+                <p className="mt-3 text-sm font-semibold text-slate-900">{c.name}</p>
+                <p className="text-xs text-slate-400">{c.detail}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -195,13 +195,17 @@ export default function DashboardPage() {
   );
   const planJourney = activePlan ? journeys.find((j) => j.id === activePlan.journey_id) : undefined;
   const activeJourneys = journeys.filter((j) => j.status !== "cancelled").length;
-  const confirmedJourney = journeys.find((j) => j.status === "confirmed");
-  // every paid journey gets its own pass + tracker — not just the first one
-  const paidJourneys = journeys.filter(
-    (j) => (j.escrow_status || j.status === "confirmed") && j.status !== "cancelled"
-  );
-  // paid but no flight chosen yet: the pass still exists, it just needs dates
-  const needsFlight = paidJourneys.filter((j) => !j.flight_from || !j.flight_depart);
+  // a journey is finished once every milestone is released (escrow 'released')
+  // or the journey itself is confirmed — the boarding pass retires at that point
+  const isComplete = (j: Journey) => j.status === "confirmed" || j.escrow_status === "released";
+  const confirmedJourney = journeys.find(isComplete);
+  const paid = journeys.filter((j) => (j.escrow_status || j.status === "confirmed") && j.status !== "cancelled");
+  // live passes: paid, travelling, not yet completed
+  const activePasses = paid.filter((j) => !isComplete(j));
+  // finished treatments live on as compact history cards
+  const pastTreatments = journeys.filter((j) => isComplete(j));
+  // paid but no flight chosen yet (only matters while the journey is still live)
+  const needsFlight = activePasses.filter((j) => !j.flight_from || !j.flight_depart);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#e7ecf6] via-[#eef2fa] to-[#e7ecf6] text-slate-900">
@@ -230,10 +234,10 @@ export default function DashboardPage() {
 
       <div id="top" className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
         {/* two-panel grid */}
-        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
           {/* LEFT: identity + details + wallet */}
-          <div className="flex flex-col gap-5">
-            <section className="rounded-3xl border border-slate-200/70 bg-white p-6 text-center shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          <div className="flex min-w-0 flex-col gap-5">
+            <section className="rounded-3xl border border-slate-200/70 bg-white p-5 text-center shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:p-6">
               <label className="group relative mx-auto flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-semibold text-white shadow-md ring-4 ring-white ring-offset-2 ring-offset-slate-100">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -284,7 +288,7 @@ export default function DashboardPage() {
           </div>
 
           {/* RIGHT: reminders, plan, journeys, records */}
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             {needsFlight.length > 0 && (
               <div className="flex flex-col gap-2">
                 {needsFlight.map((j) => (
@@ -306,14 +310,44 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {paidJourneys.length > 0 && (
+            {activePasses.length > 0 && (
               <div className="flex flex-wrap gap-4">
-                {paidJourneys.map((j) => (
+                {activePasses.map((j) => (
                   <Link key={j.id} href={`/track?journey=${j.id}`} className="block w-full max-w-md transition hover:-translate-y-0.5">
                     <JourneyTicket journeyId={j.id} passenger={name} />
                   </Link>
                 ))}
               </div>
+            )}
+
+            {/* finished treatments — the pass is retired, this is the record of it */}
+            {pastTreatments.length > 0 && (
+              <section className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400">Past treatments</p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {pastTreatments.map((j) => (
+                    <Link
+                      key={j.id}
+                      href={`/track?journey=${j.id}`}
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{j.condition || j.treatment || "Treatment"}</p>
+                          <p className="truncate text-xs text-slate-400">
+                            {[j.hospital_name, j.destination_city || j.destination_country].filter(Boolean).join(" · ") || "Completed"}
+                            {j.flight_depart ? ` · ${new Date(j.flight_depart).toLocaleDateString(undefined, { dateStyle: "medium" })}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium text-emerald-700">Completed</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
             )}
             {dbError && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -324,15 +358,23 @@ export default function DashboardPage() {
             {(upcoming || activePlan || confirmedJourney) && (
               <div className="flex flex-col gap-3">
                 {confirmedJourney && (
-                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+                  <div className="flex flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                     <div className="flex items-start gap-3">
-                      <span className="text-lg">🎟️</span>
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                      </span>
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Payment confirmed</p>
-                        <p className="mt-0.5 text-sm text-slate-700">Your treatment is booked and paid into escrow.</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Journey completed</p>
+                        <p className="mt-0.5 text-sm text-slate-700">
+                          Your {confirmedJourney.condition ? `${confirmedJourney.condition.toLowerCase()} treatment` : "treatment"}
+                          {confirmedJourney.destination_country || confirmedJourney.destination_city
+                            ? ` in ${confirmedJourney.destination_country || confirmedJourney.destination_city}`
+                            : ""}{" "}
+                          is complete and every milestone has been released.
+                        </p>
                       </div>
                     </div>
-                    <a href={`/track?journey=${confirmedJourney.id}`} className="shrink-0 rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700">View pass</a>
+                    <a href={`/track?journey=${confirmedJourney.id}`} className="shrink-0 rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700">View record</a>
                   </div>
                 )}
                 {upcoming && (
@@ -351,18 +393,18 @@ export default function DashboardPage() {
             {/* treatment plan */}
             {activePlan && (
               <section id="treatment-plan" className="scroll-mt-24 overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/60 px-6 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50/60 px-5 py-4 sm:gap-0 sm:px-6">
                   <h2 className="text-lg font-semibold">Treatment plan</h2>
                   <span className="text-xs text-slate-400">{activePlan.completed_at ? new Date(activePlan.completed_at).toLocaleString() : ""}</span>
                 </div>
-                <div className="p-6">
-                  <div className="grid gap-5 sm:grid-cols-2">
+                <div className="p-5 sm:p-6">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <Plan label="Diagnosis / condition" value={activePlan.diagnosis} />
                     <Plan label="Doctor recommendations" value={activePlan.recommendations} />
                     <Plan label="Prescription" value={activePlan.prescription} />
                     <Plan label="Recommended hospital" value={activePlan.recommended_hospital} />
                   </div>
-                  <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-4 text-white">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-white sm:gap-0">
                     <span className="text-sm text-white/70">Estimated cost</span>
                     <span className="text-2xl font-semibold">{activePlan.estimated_cost_usd != null ? `$${activePlan.estimated_cost_usd.toLocaleString()}` : "—"}</span>
                   </div>
@@ -399,7 +441,7 @@ export default function DashboardPage() {
               {journeys.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-8 text-center text-sm text-slate-500">No journeys yet — start your first one.</div>
               ) : (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {journeys.map((j, i) => {
                     const s = STATUS_META[j.status ?? "intake"] ?? STATUS_META.intake;
                     const tone = j.status === "cancelled" ? { bg: "bg-slate-50", bar: "bg-slate-300", ring: "border-slate-100" } : TONES[i % TONES.length];
@@ -435,7 +477,7 @@ export default function DashboardPage() {
             </section>
 
             {/* consultations + documents */}
-            <div id="consultations" className="grid scroll-mt-24 gap-5 xl:grid-cols-2">
+            <div id="consultations" className="grid grid-cols-1 scroll-mt-24 gap-5 xl:grid-cols-2">
               <ConsultationHistory consultations={consultations} onComplete={demoCompleteConsult} />
               {privyId && <MedicalDocuments privyId={privyId} />}
             </div>
@@ -465,7 +507,7 @@ function Banner({ tone, kicker, icon, text, action }: { tone: "blue" | "amber"; 
   const tones = tone === "blue" ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50";
   const kick = tone === "blue" ? "text-blue-700" : "text-amber-700";
   return (
-    <div className={`flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${tones}`}>
+    <div className={`flex flex-col items-start gap-3 rounded-2xl border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${tones}`}>
       <div className="flex items-start gap-3">
         <span className="text-lg">{icon}</span>
         <div>

@@ -91,15 +91,15 @@ export default function PassPage() {
         {/* ticket */}
         <div className="overflow-hidden rounded-3xl bg-white text-slate-900 shadow-2xl">
           {/* header */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-[#0e2136] to-[#123a52] px-6 py-4 text-white">
+          <div className="flex items-center justify-between bg-gradient-to-r from-[#0e2136] to-[#123a52] px-5 py-4 text-white sm:px-6">
             <p className="text-sm font-semibold tracking-[0.2em]">GLOBALCARE PASS</p>
             <span className="rounded-full bg-teal-500/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-teal-300">Confirmed</span>
           </div>
 
           {/* route */}
-          <div className="flex items-center justify-between px-6 pt-6">
+          <div className="flex items-center justify-between px-5 pt-6 sm:px-6">
             <div>
-              <p className="text-3xl font-bold tracking-tight">{from}</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">{from}</p>
               <p className="text-xs text-slate-500">Home</p>
             </div>
             <div className="flex flex-1 items-center px-3 text-teal-500">
@@ -108,13 +108,13 @@ export default function PassPage() {
               <span className="h-px flex-1 bg-teal-200" />
             </div>
             <div className="text-right">
-              <p className="text-3xl font-bold tracking-tight">{to}</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">{to}</p>
               <p className="text-xs text-slate-500">{journey.destination_city || "Destination"}</p>
             </div>
           </div>
 
           {/* flight grid */}
-          <div className="grid grid-cols-4 gap-3 px-6 py-5 text-center">
+          <div className="grid grid-cols-2 gap-3 px-5 py-5 text-center sm:grid-cols-4 sm:px-6">
             <Cell label="Passenger" value={name} wide />
             <Cell label="Flight" value={d.flightNo} />
             <Cell label="Seat" value={d.seat} />
@@ -128,11 +128,11 @@ export default function PassPage() {
           <div className="relative">
             <div className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-[#0e2136]" />
             <div className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-[#0e2136]" />
-            <div className="mx-6 border-t-2 border-dashed border-slate-200" />
+            <div className="mx-5 border-t-2 border-dashed border-slate-200 sm:mx-6" />
           </div>
 
           {/* treatment block */}
-          <div className="px-6 py-5">
+          <div className="px-5 py-5 sm:px-6">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-600">Treatment</p>
             <div className="mt-2 grid grid-cols-2 gap-3">
               <Cell label="Condition" value={journey.condition || "—"} />
@@ -144,7 +144,7 @@ export default function PassPage() {
           </div>
 
           {/* footer / payment */}
-          <div className="flex items-center justify-between bg-slate-50 px-6 py-4">
+          <div className="flex items-center justify-between bg-slate-50 px-5 py-4 sm:px-6">
             <div>
               <p className="text-[11px] uppercase tracking-wide text-slate-400">Paid (escrow)</p>
               <p className="text-lg font-semibold text-slate-900">

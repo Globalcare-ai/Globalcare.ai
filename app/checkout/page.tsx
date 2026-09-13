@@ -256,7 +256,7 @@ export default function CheckoutPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#eef2fb] px-4 py-10">
-      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">Checkout</p>
         <h1 className="mt-1 text-xl font-semibold tracking-tight">{journey.condition || "Treatment"}</h1>
         {journey.hospital_name && <p className="text-sm text-slate-500">{journey.hospital_name}</p>}

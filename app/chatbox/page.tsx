@@ -1089,6 +1089,14 @@ export default function Chatbox() {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-3">
         <div className="flex items-center gap-2">
+          {/* the sidebar (and its New chat button) is hidden below lg */}
+          <button
+            onClick={() => router.push("/chatbox?new=1")}
+            title="New chat"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-white transition hover:bg-blue-600 lg:hidden"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
           <span className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-semibold text-zinc-800">GlobalCare AI</span>
           <span className="hidden text-xs text-zinc-400 sm:inline">medical travel assistant</span>
         </div>
@@ -1108,7 +1116,7 @@ export default function Chatbox() {
                 <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Let’s start your medical journey</h2>
                 <p className="mx-auto mt-1.5 max-w-md text-sm text-zinc-500">Tell me your condition and I’ll find the best hospitals, honest cost comparisons, travel, and a free doctor consultation.</p>
               </div>
-              <div className="grid w-full gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 w-full gap-3 sm:grid-cols-3">
                 {([
                   { t: "Explore treatment", s: "Describe your condition and see options.", p: "I'd like to explore treatment options for my condition" },
                   { t: "Compare prices", s: "Costs across top destinations.", p: "Compare prices for my treatment across countries" },

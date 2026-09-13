@@ -186,7 +186,7 @@ export default function DoctorConsole() {
                         {/* patient chart */}
                         <div className="mb-5 rounded-2xl bg-slate-50 px-5 py-4">
                           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Patient chart</p>
-                          <div className="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
+                          <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
                             <Chart k="Condition" v={jn?.condition || c.reason} />
                             <Chart k="Destination" v={[jn?.destination_city, jn?.destination_country].filter(Boolean).join(", ")} />
                             <Chart k="Blood group" v={pat?.blood_group} />
@@ -196,7 +196,7 @@ export default function DoctorConsole() {
                           </div>
                         </div>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <Text label="Diagnosis / condition" v={f.diagnosis} on={(x) => set(c.id, "diagnosis", x)} area placeholder="What you found on the call" />
                           <Text label="Recommendations" v={f.recommendations} on={(x) => set(c.id, "recommendations", x)} area placeholder="Procedure, technique, timeline" />
                           <Text label="Prescription" v={f.prescription} on={(x) => set(c.id, "prescription", x)} area placeholder="Medication and dosage" />
@@ -240,7 +240,7 @@ export default function DoctorConsole() {
                     </div>
                     <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium text-emerald-700">Completed</span>
                   </div>
-                  <div className="mt-4 grid gap-x-8 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
+                  <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
                     <Chart k="Diagnosis" v={c.diagnosis} />
                     <Chart k="Recommendations" v={c.recommendations} />
                     <Chart k="Prescription" v={c.prescription} />

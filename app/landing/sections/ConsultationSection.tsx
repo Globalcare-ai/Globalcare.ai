@@ -1,7 +1,7 @@
 export default function ConsultationSection() {
   return (
     <section
-      className="w-full py-24 px-6 flex flex-col items-center text-center overflow-hidden"
+      className="w-full py-16 sm:py-24 px-6 flex flex-col items-center text-center overflow-hidden"
       style={{
         background:
           "radial-gradient(ellipse 80% 70% at 50% 50%, #dce8ff 0%, #eef3ff 40%, #ffffff 75%)",
@@ -54,7 +54,7 @@ export default function ConsultationSection() {
 
       {/* video call card */}
       <div
-        className="relative mt-12 w-full overflow-hidden shadow-2xl"
+        className="relative mt-8 sm:mt-12 w-full overflow-hidden shadow-2xl"
         style={{
           maxWidth: "780px",
           borderRadius: "20px",
@@ -74,29 +74,29 @@ export default function ConsultationSection() {
 
         {/* doctor name badge — bottom left */}
         <div
-          className="absolute bottom-5 left-5 flex items-center gap-2.5 px-3 py-2 rounded-full"
+          className="absolute top-3 left-3 gap-2 px-2.5 py-1.5 sm:top-auto sm:bottom-5 sm:left-5 sm:gap-2.5 sm:px-3 sm:py-2 flex items-center rounded-full"
           style={{ background: "rgba(255,255,255,0.18)", backdropFilter: "blur(12px)" }}
         >
           {/* avatar */}
           <div
-            className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0 overflow-hidden"
+            className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0 overflow-hidden"
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-blue-600">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600">
               <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
             </svg>
           </div>
-          <span className="text-white text-sm font-medium" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
+          <span className="text-white text-xs sm:text-sm font-medium" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
             Dr. Samuel Kim
           </span>
         </div>
 
         {/* call controls — bottom center */}
         <div
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3"
+          className="absolute bottom-3 gap-2 sm:bottom-5 sm:gap-3 left-1/2 -translate-x-1/2 flex items-center"
         >
           {/* video off */}
           <button
-            className="w-11 h-11 rounded-full flex items-center justify-center"
+            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center"
             style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(12px)" }}
           >
             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
@@ -106,7 +106,7 @@ export default function ConsultationSection() {
 
           {/* mute */}
           <button
-            className="w-11 h-11 rounded-full flex items-center justify-center"
+            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center"
             style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(12px)" }}
           >
             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
@@ -116,7 +116,7 @@ export default function ConsultationSection() {
 
           {/* end call — red */}
           <button
-            className="w-12 h-12 rounded-full flex items-center justify-center"
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center"
             style={{ background: "#ef4444" }}
           >
             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5" style={{ transform: "rotate(135deg)" }}>
@@ -126,7 +126,7 @@ export default function ConsultationSection() {
         </div>
 
         {/* right icons — bottom right */}
-        <div className="absolute bottom-5 right-5 flex items-center gap-3">
+        <div className="absolute bottom-5 right-5 hidden sm:flex items-center gap-3">
           {/* face scan */}
           <button
             className="w-10 h-10 rounded-full flex items-center justify-center"

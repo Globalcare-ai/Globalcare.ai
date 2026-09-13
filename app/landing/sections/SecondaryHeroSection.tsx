@@ -58,7 +58,12 @@ export default function SecondaryHeroSection() {
 
   return (
     // Wrapper: tall = sticky stage height (100vh) + scroll room for all chips
-    <div ref={wrapperRef} style={{ height: `calc(100vh + ${chips.length * 130}px)` }}>
+    <div ref={wrapperRef} className="gc-chip-stage" style={{ ["--chip-scroll" as string]: `${chips.length * 130}px` }}>
+      {/* the chips only render at lg+, so phones get no extra dead scroll room */}
+      <style>{`
+        .gc-chip-stage { height: 100vh; }
+        @media (min-width: 1024px) { .gc-chip-stage { height: calc(100vh + var(--chip-scroll)); } }
+      `}</style>
 
       {/* CSS sticky — stays in view while wrapper scrolls, zero DOM side effects */}
       <div
@@ -97,13 +102,13 @@ export default function SecondaryHeroSection() {
         ))}
 
         {/* center content */}
-        <div className="relative z-10 max-w-2xl">
+        <div className="relative z-10 max-w-2xl px-6">
           <h2
             style={{
               fontFamily:    "var(--font-clash)",
               fontWeight:    500,
-              fontSize:      "56px",
-              lineHeight:    "64px",
+              fontSize:      "clamp(28px, 7vw, 56px)",
+              lineHeight:    "clamp(34px, 8.2vw, 64px)",
               color:         "rgb(27, 27, 27)",
               letterSpacing: "-0.02em",
             }}
@@ -117,8 +122,8 @@ export default function SecondaryHeroSection() {
             style={{
               fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
               fontWeight: 400,
-              fontSize:   "18px",
-              lineHeight: "28px",
+              fontSize:   "clamp(15px, 4.2vw, 18px)",
+              lineHeight: "clamp(22px, 6vw, 28px)",
               color:      "rgb(94, 97, 110)",
             }}
           >

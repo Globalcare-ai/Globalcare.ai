@@ -68,7 +68,7 @@ export default function MedicalDocuments({ privyId }: { privyId: string }) {
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Medical documents</h2>
         <label className="shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-slate-950 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600">

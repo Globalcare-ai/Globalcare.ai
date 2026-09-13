@@ -141,9 +141,9 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#eef2fb] text-slate-900">
-      <div className="mx-auto flex max-w-7xl gap-6 px-6 py-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6 lg:py-8">
         {/* sidebar */}
-        <aside className="w-64 shrink-0">
+        <aside className="w-full shrink-0 lg:w-64">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-sm text-white">🛠️</span>
@@ -152,10 +152,10 @@ export default function AdminPage() {
                 <h1 className="text-base font-semibold tracking-tight">Ops console</h1>
               </div>
             </div>
-            <nav className="mt-5 flex flex-col gap-1.5">
+            <nav className="mt-5 flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
               {SECTIONS.map((sct) => (
                 <button key={sct.key} onClick={() => setTab(sct.key)}
-                  className={`flex items-center justify-between rounded-full px-4 py-2.5 text-left text-sm transition ${tab === sct.key ? "bg-slate-950 font-medium text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>
+                  className={`flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-left text-sm transition lg:shrink lg:whitespace-normal ${tab === sct.key ? "bg-slate-950 font-medium text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>
                   <span>{sct.icon}&ensp;{sct.label}</span>
                   {counts[sct.key] > 0 && <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sct.key === "overview" ? "bg-rose-100 text-rose-600" : tab === sct.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{counts[sct.key]}</span>}
                 </button>
@@ -168,9 +168,9 @@ export default function AdminPage() {
         {/* content */}
         <section className="min-w-0 flex-1">
           {/* content header */}
-          <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight">{SECTIONS.find((x) => x.key === tab)?.label}</h2>
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{SECTIONS.find((x) => x.key === tab)?.label}</h2>
               <p className="mt-0.5 text-sm text-slate-500">{BLURB[tab]}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -215,15 +215,15 @@ export default function AdminPage() {
                   {(pendingRefunds.length > 0 || cancelRequested.length > 0) && (
                     <Card title="⚠️ Alerts">
                       {cancelRequested.map((j) => (
-                        <div key={j.id} className="flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm">
+                        <div key={j.id} className="flex flex-col items-start gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                           <span className="text-slate-700"><b>{nameOf(j.privy_user_id)}</b> requested cancellation · {j.condition || "journey"}</span>
-                          <button onClick={() => setTab("payments")} className="rounded-full bg-rose-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-rose-700">Review →</button>
+                          <button onClick={() => setTab("payments")} className="shrink-0 rounded-full bg-rose-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-rose-700">Review →</button>
                         </div>
                       ))}
                       {pendingRefunds.map((r) => (
-                        <div key={r.id} className="flex items-center justify-between rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm">
+                        <div key={r.id} className="flex flex-col items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                           <span className="text-slate-700"><b>{nameOf(journeyOf(r.journey_id)?.privy_user_id ?? "")}</b> · refund requested{r.reason ? ` — ${r.reason}` : ""}</span>
-                          <button onClick={() => setTab("payments")} className="rounded-full bg-amber-500 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-amber-600">Review →</button>
+                          <button onClick={() => setTab("payments")} className="shrink-0 rounded-full bg-amber-500 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-amber-600">Review →</button>
                         </div>
                       ))}
                     </Card>
@@ -231,7 +231,7 @@ export default function AdminPage() {
 
                   <Card title="Recent payments">
                     {payments.length === 0 ? <Empty>No payments yet.</Empty> : payments.slice(0, 8).map((p) => (
-                      <div key={p.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm">
+                      <div key={p.id} className="flex flex-col items-start gap-1.5 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                         <span className="text-slate-700"><b>{nameOf(p.privy_user_id)}</b> · {journeyOf(p.journey_id)?.condition || "journey"} · {usd(p.amount_usd)}</span>
                         <span className="flex items-center gap-3 text-xs text-slate-400">
                           {p.tx_hash && <a href={scan(p.tx_hash, p.network)} target="_blank" rel="noreferrer" className="font-mono text-blue-600 underline decoration-dotted hover:text-blue-700">{p.tx_hash.slice(0, 12)}…</a>}
@@ -243,7 +243,7 @@ export default function AdminPage() {
 
                   <Card title="Escrow snapshot">
                     {escrows.length === 0 ? <Empty>No escrows yet.</Empty> : escrows.map((e) => (
-                      <div key={e.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm">
+                      <div key={e.id} className="flex flex-col items-start gap-1.5 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                         <span className="text-slate-700"><b>{nameOf(e.privy_user_id)}</b> · {journeyOf(e.journey_id)?.condition || "journey"}</span>
                         <span className="flex items-center gap-3">
                           <span className="text-xs text-slate-500">{amt(Number(e.deposited_amount), e.token)} {e.token ?? "USDC"}</span>
@@ -264,7 +264,7 @@ export default function AdminPage() {
                     const open = openPatient === p.id;
                     return (
                       <div key={p.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md">
-                        <button onClick={() => setOpenPatient(open ? null : p.id)} className="flex w-full items-center justify-between px-6 py-4 text-left transition hover:bg-slate-50/70">
+                        <button onClick={() => setOpenPatient(open ? null : p.id)} className="flex w-full flex-col items-start gap-3 px-4 py-4 text-left transition hover:bg-slate-50/70 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:px-6">
                           <div className="flex items-center gap-3">
                             <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">
                               {p.avatar_url ? (
@@ -279,7 +279,7 @@ export default function AdminPage() {
                               <p className="text-xs text-slate-400">{p.email || "—"} · id {p.privy_user_id.slice(0, 18)}…</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:gap-3">
                             <span className="rounded-full bg-slate-100 px-2.5 py-1">{js.length} journeys</span>
                             <span className="rounded-full bg-slate-100 px-2.5 py-1">{cs.length} consults</span>
                             <span className="rounded-full bg-slate-100 px-2.5 py-1">{ds.length} docs</span>
@@ -287,8 +287,8 @@ export default function AdminPage() {
                           </div>
                         </button>
                         {open && (
-                          <div className="border-t border-slate-100 px-6 py-5">
-                            <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+                          <div className="border-t border-slate-100 px-4 py-5 sm:px-6">
+                            <div className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
                               <Field k="Phone" v={p.phone} /><Field k="Date of birth" v={p.date_of_birth ? day(p.date_of_birth) : null} />
                               <Field k="Blood group" v={p.blood_group} /><Field k="Allergies" v={p.allergies} />
                               <Field k="Existing conditions" v={p.conditions} /><Field k="Medications" v={p.medications} />
@@ -306,7 +306,7 @@ export default function AdminPage() {
                               <div className="mt-5">
                                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400">Journey history</p>
                                 {js.map((j) => (
-                                  <div key={j.id} className="mt-2 flex items-center justify-between text-sm">
+                                  <div key={j.id} className="mt-2 flex flex-col items-start gap-1.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-0">
                                     <span className="text-slate-600">{j.condition || j.treatment || "Journey"} · {j.hospital_name || "—"}</span>
                                     <span className="flex items-center gap-2"><StatusChip s={j.status ?? "intake"} /><Link href={`/track?journey=${j.id}`} className="text-xs font-medium text-blue-600 hover:underline">track →</Link></span>
                                   </div>
@@ -324,8 +324,8 @@ export default function AdminPage() {
               {tab === "journeys" && (
                 <div className="flex flex-col gap-4">
                   {journeys.length === 0 ? <EmptyCard>No journeys yet.</EmptyCard> : journeys.map((j) => (
-                    <div key={j.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md">
-                      <div className="flex items-start justify-between">
+                    <div key={j.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:p-6">
+                      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-0">
                         <div>
                           <p className="font-semibold">{j.condition || j.treatment || "Journey"} <span className="ml-1 text-sm font-normal text-slate-400">· {nameOf(j.privy_user_id)}</span></p>
                           <p className="mt-0.5 text-xs text-slate-400">{j.hospital_name || "—"} · {[j.destination_city, j.destination_country].filter(Boolean).join(", ") || "destination TBC"}</p>
@@ -347,8 +347,8 @@ export default function AdminPage() {
               {tab === "consults" && (
                 <div className="flex flex-col gap-4">
                   {consults.length === 0 ? <EmptyCard>No consultations yet.</EmptyCard> : consults.map((c) => (
-                    <div key={c.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow-md">
-                      <div className="flex items-start justify-between">
+                    <div key={c.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:p-6">
+                      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-0">
                         <div>
                           <p className="font-semibold">{nameOf(c.privy_user_id)} <span className="text-sm font-normal text-slate-400">· {c.doctor_name || "GlobalCare Specialist"}</span></p>
                           <p className="mt-0.5 text-xs text-slate-400">{c.reason || journeyOf(c.journey_id)?.condition || "Consultation"} · {c.scheduled_at ? when(c.scheduled_at) : "time TBC"}</p>
@@ -356,7 +356,7 @@ export default function AdminPage() {
                         <StatusChip s={c.status} />
                       </div>
                       {c.status === "completed" && (
-                        <div className="mt-4 grid gap-x-8 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
+                        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
                           <Field k="Diagnosis" v={c.diagnosis} /><Field k="Recommendations" v={c.recommendations} />
                           <Field k="Prescription" v={c.prescription} /><Field k="Recommended hospital" v={c.recommended_hospital} />
                           <Field k="Final estimate" v={c.estimated_cost_usd != null ? usd(c.estimated_cost_usd) : null} />
@@ -458,13 +458,13 @@ export default function AdminPage() {
                     const rows = esc ? msOf(esc.id) : [];
                     const coord = rows.find((m) => m.idx === 1);
                     return (
-                      <div key={j.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                        <div className="flex items-start justify-between">
+                      <div key={j.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-0">
                           <div>
                             <p className="font-semibold">{nameOf(j.privy_user_id)} <span className="text-sm font-normal text-slate-400">· {j.condition || "Journey"}</span></p>
                             <p className="mt-0.5 text-xs text-slate-400">{j.origin_city || "—"} → {[j.destination_city, j.destination_country].filter(Boolean).join(", ") || "—"}</p>
                           </div>
-                          <div className="text-right text-xs text-slate-400">{j.flight_airline || "GlobalCare Air"}{j.flight_price != null ? ` · ${usd(j.flight_price)}` : ""}</div>
+                          <div className="text-xs text-slate-400 sm:text-right">{j.flight_airline || "GlobalCare Air"}{j.flight_price != null ? ` · ${usd(j.flight_price)}` : ""}</div>
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-400 sm:grid-cols-4">
                           <span>Route <b className="block text-sm font-semibold text-slate-800">{j.flight_from ? `${j.flight_from} → ${j.flight_to}` : "—"}</b></span>
@@ -499,14 +499,14 @@ function Kpi({ label, v }: { label: string; v: string }) {
   );
 }
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><p className="mb-4 text-base font-semibold">{title}</p><div className="flex flex-col gap-2.5">{children}</div></div>;
+  return <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p className="mb-4 text-base font-semibold">{title}</p><div className="flex flex-col gap-2.5">{children}</div></div>;
 }
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">{children}</p>;
 }
 function EmptyCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-white/60 p-12 text-center shadow-sm">
+    <div className="rounded-3xl border border-dashed border-slate-300 bg-white/60 p-8 text-center shadow-sm sm:p-12">
       <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M4 12h10M4 17h7" /></svg>
       </span>

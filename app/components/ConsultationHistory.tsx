@@ -20,7 +20,7 @@ export default function ConsultationHistory({ consultations, onComplete }: { con
   const [open, setOpen] = useState<string | null>(null);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Medical consultations</h2>
       <div className="mt-4 flex flex-col gap-3">
         {consultations.length === 0 ? (
@@ -32,11 +32,11 @@ export default function ConsultationHistory({ consultations, onComplete }: { con
             const isOpen = open === c.id;
             return (
               <div key={c.id} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                       <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                      <p className="truncate font-semibold text-slate-900">{c.reason || "Consultation"}</p>
+                      <p className="min-w-0 truncate font-semibold text-slate-900">{c.reason || "Consultation"}</p>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${CS[c.status ?? "scheduled"] ?? CS.scheduled}`}>
                         {c.status ?? "scheduled"}
                       </span>
@@ -47,19 +47,19 @@ export default function ConsultationHistory({ consultations, onComplete }: { con
                     </p>
                   </div>
                   {c.status === "completed" && (
-                    <button onClick={() => setOpen(isOpen ? null : c.id)} className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:border-blue-300">
+                    <button onClick={() => setOpen(isOpen ? null : c.id)} className="shrink-0 self-start rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:border-blue-300">
                       {isOpen ? "Hide" : "View consultation"}
                     </button>
                   )}
                   {c.status === "scheduled" && onComplete && (
-                    <button onClick={() => onComplete(c)} className="shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700" title="Demo: simulate the doctor submitting the treatment plan">
+                    <button onClick={() => onComplete(c)} className="shrink-0 self-start rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700" title="Demo: simulate the doctor submitting the treatment plan">
                       Mark completed (demo)
                     </button>
                   )}
                 </div>
 
                 {isOpen && c.status === "completed" && (
-                  <div className="mt-3 grid gap-3 border-t border-slate-200 pt-3 text-sm sm:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 text-sm sm:grid-cols-2">
                     <Field label="Diagnosis" value={c.diagnosis} />
                     <Field label="Recommendation" value={c.recommendations} />
                     <Field label="Prescription" value={c.prescription} />

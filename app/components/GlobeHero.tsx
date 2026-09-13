@@ -57,7 +57,7 @@ const ARCS = [
 
 export default function GlobeHero() {
   return (
-    <div className="relative z-[5] mx-auto -mt-14 w-[92vw] max-w-[820px]">
+    <div className="relative z-[5] mx-auto mt-6 w-[92vw] max-w-[820px] sm:-mt-14">
       {/* light-blue glow — sized/centered to hug the sphere (sphere ≈ 85% of the canvas) */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[100%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.35)_0%,rgba(147,197,253,0.22)_38%,rgba(191,219,254,0.12)_52%,transparent_66%)] blur-2xl" />
       {/* soft horizon accent at the top edge of the sphere */}
